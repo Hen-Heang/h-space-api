@@ -19,13 +19,13 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(
                         new Info()
-                                .title("AuthHub API")
+                                .title("H-Space API API")
                                 .version("1.0")
                                 .description("Authentication service with JWT and OAuth2 support")
                                 .termsOfService("https://www.example.com/terms")
                                 .contact(
                                         new Contact()
-                                                .name("AuthHub Team")
+                                                .name("H-Space API Team")
                                                 .url("https://www.example.com")
                                                 .email("info@example.com"))
                                 .license(

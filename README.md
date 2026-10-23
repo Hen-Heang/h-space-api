@@ -1,6 +1,6 @@
-# AuthHub
+# H-Space API
 
-[![CI](https://github.com/Hen-Heang/authhub/actions/workflows/ci.yml/badge.svg)](https://github.com/Hen-Heang/authhub/actions/workflows/ci.yml)
+[![CI](https://github.com/Hen-Heang/h-space-api/actions/workflows/ci.yml/badge.svg)](https://github.com/Hen-Heang/h-space-api/actions/workflows/ci.yml)
 
 A multi-module **Spring Boot 3.5** monorepo for authentication and a sample
 business API. It provides JWT-based authentication (with refresh + revocation),
@@ -19,7 +19,7 @@ modules that other services build on top of.
 
 ## Module Architecture
 
-AuthHub is a Gradle multi-project build with three modules. Dependencies flow in
+H-Space API is a Gradle multi-project build with three modules. Dependencies flow in
 one direction only (no cycles):
 
 ```
@@ -99,7 +99,7 @@ export GOOGLE_CLIENT_IDS=""   # comma-separated OAuth client IDs; empty disables
 
 ## Build
 
-From the `AuthHub/` directory:
+From the `h-space-api/` directory:
 
 ```bash
 # Build everything (compiles, runs tests, produces jars)
@@ -240,7 +240,7 @@ brute-forceable endpoints (`login`, `signup`, `forgot-password`, all
 ## Project Layout
 
 ```
-AuthHub/
+h-space-api/
 ├── build.gradle           # Root: plugins, shared deps, per-module wiring, quality tooling
 ├── settings.gradle        # Declares the 3 modules
 ├── gradlew / gradlew.bat  # Gradle wrapper

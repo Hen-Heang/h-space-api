@@ -59,7 +59,7 @@ public class MfaController extends BaseController {
                                             value =
                                                     "{\"status\":{\"code\":200,\"message\":\"Success\"},"
                                                             + "\"data\":{\"secret\":\"JBSWY3DPEHPK3PXP\","
-                                                            + "\"otpAuthUri\":\"otpauth://totp/AuthHub:jane@example.com?secret=JBSWY3DPEHPK3PXP&issuer=AuthHub\","
+                                                            + "\"otpAuthUri\":\"otpauth://totp/H-Space-API:jane@example.com?secret=JBSWY3DPEHPK3PXP&issuer=H-Space-API\","
                                                             + "\"qrCodeImageBase64\":\"iVBORw0KGgoAAAANSUhEUgAA...\"}}")))
     @PostMapping("/setup")
     public Object setup(@AuthenticationPrincipal UserPrincipal userPrincipal) {

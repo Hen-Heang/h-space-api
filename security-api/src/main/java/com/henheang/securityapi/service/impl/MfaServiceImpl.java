@@ -22,7 +22,7 @@ import org.springframework.util.StringUtils;
 public class MfaServiceImpl implements MfaService {
 
     private static final Logger logger = LoggerFactory.getLogger(MfaServiceImpl.class);
-    private static final String ISSUER = "AuthHub";
+    private static final String ISSUER = "H-Space-API";
 
     private final SecretGenerator secretGenerator = new DefaultSecretGenerator();
     private final TimeProvider timeProvider = new SystemTimeProvider();

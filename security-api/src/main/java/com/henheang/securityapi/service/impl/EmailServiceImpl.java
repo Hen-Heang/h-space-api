@@ -31,7 +31,7 @@ public class EmailServiceImpl implements EmailService {
         Context context = new Context();
         context.setVariable("name", name != null ? name : "User");
         context.setVariable("resetUrl", resetUrl);
-        return sendHtmlEmail(email, "Reset Your AuthHub Password", "password-reset-email", context);
+        return sendHtmlEmail(email, "Reset Your H-Space API Password", "password-reset-email", context);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class EmailServiceImpl implements EmailService {
         context.setVariable("name", name != null ? name : "User");
         context.setVariable("verificationUrl", verificationUrl);
         return sendHtmlEmail(
-                email, "Verify Your AuthHub Email Address", "email-verification", context);
+                email, "Verify Your H-Space API Email Address", "email-verification", context);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class EmailServiceImpl implements EmailService {
         context.setVariable("name", name != null ? name : "User");
         context.setVariable("unlockUrl", unlockUrl);
         return sendHtmlEmail(
-                email, "Your AuthHub Account Has Been Locked", "account-locked", context);
+                email, "Your H-Space API Account Has Been Locked", "account-locked", context);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class EmailServiceImpl implements EmailService {
         Context context = new Context();
         context.setVariable("name", name != null ? name : "User");
         return sendHtmlEmail(
-                email, "Your AuthHub Account Has Been Unlocked", "account-unlocked", context);
+                email, "Your H-Space API Account Has Been Unlocked", "account-unlocked", context);
     }
 
     private boolean sendHtmlEmail(String email, String subject, String template, Context context) {

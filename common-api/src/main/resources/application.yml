@@ -36,7 +36,7 @@ app:
   reset-password:
     token-expiration-minutes: 1440
   email:
-    from-name: AuthHub Team
+    from-name: H-Space API Team
 
 server:
   port: ${SERVER_PORT:8081}

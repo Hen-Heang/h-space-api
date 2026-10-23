@@ -1,4 +1,4 @@
-# AuthHub
+# H-Space API
 
 Multi-module Gradle/Spring Boot monorepo. Group `com.henheang`, Java 17, Spring Boot 3.5.15, PostgreSQL.
 

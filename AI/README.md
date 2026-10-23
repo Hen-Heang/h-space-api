@@ -6,7 +6,7 @@ it evaporate at the end of the conversation.
 
 - `Prompts/` — prompts that worked well, worth reusing verbatim or adapting.
 - `Claude Commands/` — custom slash commands / workflows built for this repo.
-- `Architecture Notes/` — notes on how AuthHub's modules fit together, decisions and tradeoffs.
+- `Architecture Notes/` — notes on how H-Space API's modules fit together, decisions and tradeoffs.
 - `Spring Boot Notes/` — Spring Boot concepts/gotchas learned while building this.
 - `PostgreSQL Tips/` — Postgres/JPA/Hibernate tips specific to this project.
 - `Security Checklist/` — auth/JWT/MFA security items to check before shipping.

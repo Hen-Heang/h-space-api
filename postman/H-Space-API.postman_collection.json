@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "AuthHub - security-api",
-    "description": "Requests for security-api (port 8080). Import into Postman along with the AuthHub environment. All responses are wrapped in common-api's ApiResponse envelope.",
+    "name": "H-Space API - security-api",
+    "description": "Requests for security-api (port 8080). Import into Postman along with the H-Space API environment. All responses are wrapped in common-api's ApiResponse envelope.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

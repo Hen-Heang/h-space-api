@@ -1,4 +1,4 @@
-# Contributing to AuthHub
+# Contributing to H-Space API
 
 ## Setup
 

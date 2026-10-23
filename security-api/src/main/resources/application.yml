@@ -58,7 +58,7 @@ app:
   reset-password:
     token-expiration-minutes: 1440
   email:
-    from-name: AuthHub Team
+    from-name: H-Space API Team
   email-verification:
     token-expiration-minutes: 1440
   account-lock:

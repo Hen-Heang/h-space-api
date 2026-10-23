@@ -4,7 +4,7 @@
 
 This is currently a personal/practice project without a dedicated security
 contact. If you find a vulnerability, please open a GitHub issue on the
-[repository](https://github.com/Hen-Heang/authhub) with as much detail as
+[repository](https://github.com/Hen-Heang/h-space-api) with as much detail as
 possible (affected module, reproduction steps, impact). Avoid filing public
 issues for anything actively exploitable against a real deployment — there is
 none in production today, so this is a soft requirement for now.

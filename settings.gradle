@@ -1,4 +1,4 @@
-rootProject.name = 'AuthHub'
+rootProject.name = 'h-space-api'
 include 'security-api'
 include 'open-api'
 include 'common-api'

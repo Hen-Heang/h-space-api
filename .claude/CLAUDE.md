@@ -30,7 +30,7 @@ contributor/agent).
 - `context/` — supplementary background material that's useful for an agent
   working in this repo but is more narrative/investigative than the
   user-facing `docs/`:
-  - `project.md` — what AuthHub is, where it stands right now, deliberate
+  - `project.md` — what H-Space API is, where it stands right now, deliberate
     rough edges not to "fix" opportunistically.
   - `modules.md` — per-module package breakdown beyond
     `docs/architecture.md`'s summary.
