@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+    url: jdbc:postgresql://localhost:5432/spring_jpa_test
+    username: postgres
+    password: 123
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+jwt:
+  expiration: 2h
+
+server:
+  port: 8080
+security:
+  jwt:
+    secret-key: "xdeaHaOM2V9Cyc2vBZfro/aBVQ7le3h0Ft2K0Oqx2Bxh6NYHOYFHEkVsXyyDUsSy"
+    expiration-time: 3600000
+
+

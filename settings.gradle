@@ -1,0 +1,5 @@
+rootProject.name = 'AuthHub'
+include 'security-api'
+include 'open-api'
+include 'common-api'
+

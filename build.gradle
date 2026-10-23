@@ -1,0 +1,183 @@
+plugins {
+    id 'org.springframework.boot' version '3.5.15' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+    id 'com.diffplug.spotless' version '7.0.2' apply false
+}
+
+// Shared dependency versions used by more than one module. Module-specific
+// dependency versions stay local to that module's `project(':x') { }` block.
+ext {
+    mapstructVersion = '1.5.5.Final'
+    springdocVersion = '2.8.6'
+    jjwtVersion = '0.11.5'
+}
+
+allprojects {
+    group = 'com.henheang'
+    version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'com.diffplug.spotless'
+    apply plugin: 'checkstyle'
+    apply plugin: 'pmd'
+    apply plugin: 'jacoco'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    dependencies {
+        // Common dependencies for ALL modules
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+
+        // Spring Boot common dependencies
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+        annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+        // Database
+        runtimeOnly 'org.postgresql:postgresql'
+
+        // Testing
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        finalizedBy jacocoTestReport
+        // Tests always run against the "test" Spring profile (separate DB,
+        // non-sensitive JWT secret default) — see application-test.yml.
+        systemProperty 'spring.profiles.active', 'test'
+    }
+
+    jacoco {
+        toolVersion = '0.8.12'
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    // Checkstyle/PMD are advisory for now (reports only) so pre-existing code
+    // doesn't fail `build` — see docs/coding-standards.md before tightening.
+    checkstyle {
+        toolVersion = '10.20.2'
+        configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+        ignoreFailures = true
+        maxWarnings = Integer.MAX_VALUE
+    }
+
+    pmd {
+        toolVersion = '7.9.0'
+        ruleSetFiles = rootProject.files('config/pmd/ruleset.xml')
+        ruleSets = []
+        ignoreFailures = true
+        consoleOutput = true
+    }
+
+    spotless {
+        java {
+            target 'src/*/java/**/*.java'
+            googleJavaFormat('1.25.2').aosp()
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+}
+
+// Configure common-api module (base module - no dependencies on other modules)
+project(':common-api') {
+    dependencies {
+        // Only basic dependencies, no project dependencies
+        implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+        annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+        implementation 'commons-beanutils:commons-beanutils:1.9.4'
+        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+    }
+}
+
+// Configure security-api module
+project(':security-api') {
+    dependencies {
+        // Depend on common-api
+        implementation project(':common-api')
+
+        // Schema migrations - the only schema authority now (see
+        // docs/database.md); ddl-auto is "validate" in every profile.
+        implementation 'org.flywaydb:flyway-core'
+        implementation 'org.flywaydb:flyway-database-postgresql'
+
+        // Security specific dependencies
+        implementation 'com.googlecode.libphonenumber:libphonenumber:8.13.11'
+        implementation 'org.springframework.boot:spring-boot-starter-mail'
+        implementation 'org.apache.commons:commons-lang3:3.12.0'
+        implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+        implementation 'org.springframework.boot:spring-boot-starter-security'
+        implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+        implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+        // JWT
+        implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+        implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+        implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+        // Rate limiting
+        implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+
+        // TOTP-based MFA (Google Authenticator / Authy compatible)
+        implementation 'dev.samstevens.totp:totp:1.7.1'
+        // QR code image rendering for the totp lib's ZxingPngQrGenerator
+        implementation 'com.google.zxing:core:3.5.3'
+        implementation 'com.google.zxing:javase:3.5.3'
+
+        // Google Sign-In ID token verification
+        implementation 'com.google.api-client:google-api-client:2.8.0'
+
+        // Mapping
+        implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+        annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+        implementation 'commons-beanutils:commons-beanutils:1.9.4'
+
+        // Documentation
+        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+        // Permission cache (see CacheConfig / PermissionQueryService)
+        implementation 'org.springframework.boot:spring-boot-starter-cache'
+        implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+    }
+}
+
+// Configure open-api module
+project(':open-api') {
+    dependencies {
+        // Depend on both common-api and security-api
+        implementation project(':common-api')
+        implementation project(':security-api')
+
+        // Security + JWT (open-api validates tokens issued by security-api)
+        implementation 'org.springframework.boot:spring-boot-starter-security'
+        implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+        implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+        implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+        // Documentation
+        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+    }
+}

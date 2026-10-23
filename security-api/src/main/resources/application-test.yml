@@ -1,0 +1,30 @@
+# Used by `./gradlew test` and CI. Points at a dedicated test database so
+# automated tests never touch dev data, and recreates the schema every run.
+# The JWT secret default below is a fixed, non-sensitive value used only for
+# running tests — it is not a production credential.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth_test}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123}
+
+  jpa:
+    hibernate:
+      # Tests run against the exact schema Flyway would apply in prod, rather
+      # than a Hibernate-inferred one, so a Flyway/entity mismatch fails a
+      # test instead of only surfacing in a real environment.
+      ddl-auto: validate
+    show-sql: false
+
+jwt:
+  secret: ${JWT_SECRET:6KReGxxaodLtxSNprFo4WeStpovMt6VOqiFOA1FtY67PfSkPckod2OzDIKpnLgsYAjEjQGZThOknDp+CD2+gcA==}
+
+mfa:
+  encryption-key: ${MFA_ENCRYPTION_KEY:A5WWtiNdlns02Wd/qEkyzrioceZqK2kZ4/CwJCsAC00=}
+
+logging:
+  level:
+    com.henheang: WARN

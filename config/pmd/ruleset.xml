@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<ruleset name="AuthHub"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>
+        AuthHub PMD rules. Advisory only for now (pmd { ignoreFailures = true }
+        in the root build.gradle) so the existing codebase doesn't fail
+        `./gradlew build` before it's had a pass under this ruleset. Run
+        `./gradlew pmdMain` to see the report at build/reports/pmd/main.html.
+    </description>
+
+    <rule ref="category/java/bestpractices.xml">
+        <exclude name="GuardLogStatement"/>
+        <exclude name="UnitTestShouldIncludeAssert"/>
+    </rule>
+
+    <rule ref="category/java/errorprone.xml"/>
+
+    <rule ref="category/java/design.xml">
+        <exclude name="LawOfDemeter"/>
+        <exclude name="LoosePackageCoupling"/>
+        <exclude name="TooManyMethods"/>
+        <exclude name="CyclomaticComplexity"/>
+    </rule>
+
+    <rule ref="category/java/codestyle.xml/UnnecessaryImport"/>
+    <rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName"/>
+</ruleset>

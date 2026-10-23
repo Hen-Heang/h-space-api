@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: open-api
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  jpa:
+    show-sql: false
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientAutoConfiguration
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: PT24H
+  refresh-token:
+    expiration: P7D
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  reset-password:
+    token-expiration-minutes: 1440
+  email:
+    from-name: AuthHub Team
+
+server:
+  port: ${SERVER_PORT:8082}

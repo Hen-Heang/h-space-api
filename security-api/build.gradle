@@ -1,0 +1,8 @@
+// Runnable auth service, also consumed as a library by open-api (needs `jar` on too).
+bootJar {
+    enabled = true
+}
+
+jar {
+    enabled = true
+}

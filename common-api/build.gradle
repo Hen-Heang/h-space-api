@@ -1,0 +1,8 @@
+// Library module: consumed by security-api/open-api, never run standalone.
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+}

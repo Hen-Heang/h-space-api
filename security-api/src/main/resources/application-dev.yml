@@ -1,0 +1,25 @@
+# Shared dev/staging environment. All secrets must come from real env vars —
+# no insecure fallback defaults here.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+jwt:
+  secret: ${JWT_SECRET:82eec2c24d73493a9b3c257f36ea88d9122631c3bbb468a9b9e31b74f8783761}
+
+mfa:
+  encryption-key: ${MFA_ENCRYPTION_KEY:OF2ggUhJDdqTAS/Y70UescJrl55PqaQMYX7Oq83JJ4o}
+
+logging:
+  level:
+    com.henheang: DEBUG

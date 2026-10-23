@@ -1,0 +1,28 @@
+# Production. No fallback defaults for secrets — startup fails fast if
+# DB_PASSWORD / JWT_SECRET / DB_URL aren't set rather than running insecurely.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 20
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # Schema changes go through a real migration tool before prod; the app
+      # only validates the schema matches at startup.
+      ddl-auto: validate
+    show-sql: false
+
+jwt:
+  secret: ${JWT_SECRET}
+
+mfa:
+  encryption-key: ${MFA_ENCRYPTION_KEY}
+
+logging:
+  level:
+    root: WARN
+    com.henheang: INFO

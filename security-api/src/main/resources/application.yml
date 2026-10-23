@@ -1,0 +1,84 @@
+spring:
+  application:
+    name: security-api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123}
+  # Which profile-specific application-{profile}.yml to layer on top of this
+  # base file. Defaults to "local" so `./gradlew :security-api:bootRun` works
+  # out of the box; override with SPRING_PROFILES_ACTIVE in every other environment.
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  jpa:
+    show-sql: false
+
+  # Flyway is the sole schema authority (see docs/database.md); every
+  # profile's ddl-auto is "validate" - Hibernate checks the schema matches,
+  # it never creates/alters it.
+  flyway:
+    enabled: true
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientAutoConfiguration
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: PT24H
+  refresh-token:
+    expiration: P7D
+
+# AES-256 key (Base64) used to encrypt TOTP secrets at rest - see
+# MfaEncryptionConfig/MfaSecretConverter. Generate with `openssl rand -base64 32`.
+mfa:
+  encryption-key: ${MFA_ENCRYPTION_KEY}
+
+google:
+  # Comma-separated OAuth 2.0 client IDs from Google Cloud Console that are
+  # allowed as the ID token audience. Empty means Google sign-in is disabled.
+  client-ids: ${GOOGLE_CLIENT_IDS:}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  reset-password:
+    token-expiration-minutes: 1440
+  email:
+    from-name: AuthHub Team
+  email-verification:
+    token-expiration-minutes: 1440
+  account-lock:
+    max-failed-attempts: 5
+    lock-duration-minutes: 15
+    unlock-token-expiration-minutes: 60
+  password-policy:
+    min-length: 12
+    require-uppercase: true
+    require-lowercase: true
+    require-digit: true
+    require-special-char: true
+
+# See CacheConfig - bounds staleness of the "userPermissions" cache used by
+# hasPermission(...) checks after a role/permission grant changes out from
+# under an already-cached entry.
+cache:
+  permission:
+    ttl-minutes: ${PERMISSION_CACHE_TTL_MINUTES:5}
+    max-size: ${PERMISSION_CACHE_MAX_SIZE:10000}
+
+server:
+  port: ${SERVER_PORT:8080}
