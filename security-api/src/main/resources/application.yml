@@ -63,6 +63,14 @@ supabase:
   jwt-secret: ${SUPABASE_JWT_SECRET:}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
   bridge-token-ttl: ${SUPABASE_BRIDGE_TOKEN_TTL:PT1H}
+  # One-off account import (SupabaseUserImportRunner) - off unless started with
+  # --supabase.import.enabled=true. See docs/supabase-user-import.md.
+  import:
+    enabled: false
+    dry-run: true
+    db-url: ${SUPABASE_DB_URL:}
+    db-username: ${SUPABASE_DB_USERNAME:}
+    db-password: ${SUPABASE_DB_PASSWORD:}
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
