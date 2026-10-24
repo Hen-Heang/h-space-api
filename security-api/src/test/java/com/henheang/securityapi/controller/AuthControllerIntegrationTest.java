@@ -243,6 +243,33 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void supabaseToken_requiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/auth/supabase-token").with(uniqueClientIp()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void supabaseToken_whenBridgeNotConfigured_returns503() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        Map<String, String> signUpRequest =
+                Map.of("name", "Jane Doe", "email", uniqueEmail(), "password", "Password123!");
+        String signUpBody =
+                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        String accessToken = readJsonField(signUpBody, "accessToken");
+
+        // The test profile sets no SUPABASE_* values, so the bridge stays off.
+        mockMvc.perform(
+                        post("/api/auth/supabase-token")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isServiceUnavailable());
+    }
+
     @SuppressWarnings("unchecked")
     private String readJsonField(String responseBody, String field) throws Exception {
         Map<String, Object> parsed = objectMapper.readValue(responseBody, Map.class);

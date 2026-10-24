@@ -84,7 +84,8 @@ public class WebSecurityConfig {
                                         // order matters,
                                         // the first matching rule wins - these actually need a
                                         // valid principal.
-                                        .requestMatchers("/api/auth/user")
+                                        .requestMatchers(
+                                                "/api/auth/user", "/api/auth/supabase-token")
                                         .authenticated()
                                         .requestMatchers(
                                                 "/api/auth/mfa/setup",
