@@ -97,6 +97,9 @@ public class WebSecurityConfig {
                                         .permitAll()
                                         .requestMatchers("/api/public/**")
                                         .permitAll()
+                                        // Container healthcheck (liveness/readiness included)
+                                        .requestMatchers("/actuator/health", "/actuator/health/**")
+                                        .permitAll()
                                         .requestMatchers("/api/users/**")
                                         .authenticated()
                                         .requestMatchers(
