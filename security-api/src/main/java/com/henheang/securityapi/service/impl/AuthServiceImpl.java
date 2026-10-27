@@ -13,9 +13,11 @@ import com.henheang.securityapi.payload.SignUpRequest;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.security.JwtTokenProvider;
 import com.henheang.securityapi.security.oauth.GoogleTokenVerifier;
+import com.henheang.securityapi.service.AccountAccessService;
 import com.henheang.securityapi.service.AccountUnlockService;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.AuthService;
+import com.henheang.securityapi.service.EmailLoginCodeService;
 import com.henheang.securityapi.service.EmailVerificationService;
 import com.henheang.securityapi.service.LoginHistoryService;
 import com.henheang.securityapi.service.MfaBackupCodeService;
@@ -24,9 +26,11 @@ import com.henheang.securityapi.service.RefreshTokenService;
 import com.henheang.securityapi.service.RoleService;
 import com.henheang.securityapi.service.UserRoleService;
 import com.henheang.securityapi.service.UserService;
+import com.henheang.securityapi.validation.UsernameRules;
 import jakarta.transaction.Transactional;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -64,6 +68,8 @@ public class AuthServiceImpl implements AuthService {
     private final GoogleTokenVerifier googleTokenVerifier;
     private final EmailVerificationService emailVerificationService;
     private final AccountUnlockService accountUnlockService;
+    private final EmailLoginCodeService emailLoginCodeService;
+    private final AccountAccessService accountAccessService;
 
     @Value("${jwt.expiration}")
     private String jwtExpirationString;
@@ -81,10 +87,16 @@ public class AuthServiceImpl implements AuthService {
         if (userService.existsByEmail(signUpRequest.getEmail())) {
             throw new AuthException(ExitCode.EMAIL_ALREADY_EXISTS);
         }
+        String username = UsernameRules.normalize(signUpRequest.getUsername());
+        if (userRepository.existsByUsername(username)) {
+            throw new AuthException(ExitCode.USERNAME_ALREADY_EXISTS);
+        }
+        accountAccessService.assertMayCreateAccount(signUpRequest.getEmail());
 
         // Create user
         User user = new User();
         user.setName(signUpRequest.getName());
+        user.setUsername(username);
         user.setEmail(signUpRequest.getEmail());
         user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
         user.setProvider(AuthProvider.LOCAL);
@@ -99,6 +111,7 @@ public class AuthServiceImpl implements AuthService {
             // assigned after the initial save rather than cascaded with it.
             Role role = roleService.getOrCreateRole("ROLE_USER");
             userRoleService.assignDefaultRole(savedUser, role);
+            accountAccessService.recordAccountCreated(savedUser);
             if (savedUser.getEmail() != null) {
                 emailVerificationService.sendVerificationEmail(savedUser);
             }
@@ -123,18 +136,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public Object login(LoginRequest loginRequest) {
+        // Email or username - CustomUserDetailsService resolves it the same way.
+        String identifier = loginRequest.getIdentifier().trim();
         try {
             Authentication authentication =
                     authenticationManager.authenticate(
                             new UsernamePasswordAuthenticationToken(
-                                    loginRequest.getEmail(), loginRequest.getPassword()));
+                                    identifier, loginRequest.getPassword()));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
             // Find the user
             User user =
-                    userRepository
-                            .findByEmail(loginRequest.getEmail())
+                    findByLoginIdentifier(identifier)
                             .orElseThrow(() -> new AuthException(ExitCode.INVALID_CREDENTIALS));
 
             // Successful login: clear any accumulated failed-attempt count/lock
@@ -158,27 +172,110 @@ public class AuthServiceImpl implements AuthService {
             loginHistoryService.recordSuccess(user, user.getEmail());
             return issueTokens(user);
         } catch (LockedException e) {
-            logger.warn("Login rejected for {}: account locked", loginRequest.getEmail());
-            auditLogService.log(AuditEventType.ACCOUNT_LOCKED, null, loginRequest.getEmail());
-            loginHistoryService.recordFailure(loginRequest.getEmail(), "ACCOUNT_LOCKED");
+            logger.warn("Login rejected for {}: account locked", identifier);
+            auditLogService.log(AuditEventType.ACCOUNT_LOCKED, null, identifier);
+            loginHistoryService.recordFailure(identifier, "ACCOUNT_LOCKED");
             throw new AuthException(
                     ExitCode.ACCOUNT_LOCKED,
                     "Account is temporarily locked due to too many failed login attempts. Try again later.");
         } catch (DisabledException e) {
-            logger.warn("Login rejected for {}: email not verified", loginRequest.getEmail());
-            loginHistoryService.recordFailure(loginRequest.getEmail(), "EMAIL_NOT_VERIFIED");
+            logger.warn("Login rejected for {}: email not verified", identifier);
+            loginHistoryService.recordFailure(identifier, "EMAIL_NOT_VERIFIED");
             throw new AuthException(
                     ExitCode.ACCOUNT_DISABLED,
                     "Please verify your email address before logging in.");
         } catch (AuthenticationException e) {
-            logger.warn("Login failed for {}: {}", loginRequest.getEmail(), e.getMessage());
-            userRepository
-                    .findByEmail(loginRequest.getEmail())
-                    .ifPresent(this::registerFailedLoginAttempt);
-            auditLogService.log(AuditEventType.LOGIN_FAILURE, null, loginRequest.getEmail());
-            loginHistoryService.recordFailure(loginRequest.getEmail(), "INVALID_CREDENTIALS");
-            throw new AuthException(ExitCode.INVALID_CREDENTIALS, "Invalid email or password");
+            logger.warn("Login failed for {}: {}", identifier, e.getMessage());
+            findByLoginIdentifier(identifier).ifPresent(this::registerFailedLoginAttempt);
+            auditLogService.log(AuditEventType.LOGIN_FAILURE, null, identifier);
+            loginHistoryService.recordFailure(identifier, "INVALID_CREDENTIALS");
+            throw new AuthException(
+                    ExitCode.INVALID_CREDENTIALS, "Invalid email, username or password");
         }
+    }
+
+    // Same resolution as CustomUserDetailsService.loadUserByUsername.
+    private Optional<User> findByLoginIdentifier(String identifier) {
+        return UsernameRules.isEmailIdentifier(identifier)
+                ? userRepository.findByEmail(identifier)
+                : userRepository.findByUsername(UsernameRules.normalize(identifier));
+    }
+
+    @Override
+    public boolean isUsernameAvailable(String username) {
+        return UsernameRules.isValid(username)
+                && !userRepository.existsByUsername(UsernameRules.normalize(username));
+    }
+
+    @Override
+    public void sendEmailLoginCode(String email) {
+        // Invite-only: an address that has no account and can't create one
+        // gets no code. The response is the same either way (the controller
+        // always answers OK), so this reveals nothing about the address.
+        boolean hasAccount =
+                userRepository
+                        .findFirstByEmailIgnoreCaseOrderByCreatedAtAsc(
+                                EmailLoginCodeService.normalizeEmail(email))
+                        .isPresent();
+        if (!hasAccount && !accountAccessService.mayCreateAccount(email)) {
+            logger.info("No sign-in code sent to {}: no account and no invite", email);
+            return;
+        }
+        emailLoginCodeService.sendCode(email);
+    }
+
+    @Override
+    @Transactional
+    public Object loginWithEmailCode(String rawEmail, String code) {
+        String email = EmailLoginCodeService.normalizeEmail(rawEmail);
+        if (!emailLoginCodeService.consumeCode(email, code)) {
+            auditLogService.log(AuditEventType.LOGIN_FAILURE, null, email, "via email code");
+            loginHistoryService.recordFailure(email, "EMAIL_CODE_INVALID");
+            throw new AuthException(ExitCode.EMAIL_LOGIN_CODE_INVALID);
+        }
+
+        // The code proves the caller controls this mailbox, which is all an
+        // account needs: an unknown address becomes a new account, and an
+        // unverified one is verified by it.
+        User user =
+                userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc(email).orElse(null);
+        if (user == null) {
+            accountAccessService.assertMayCreateAccount(email);
+            user = new User();
+            user.setEmail(email);
+            user.setProvider(AuthProvider.LOCAL);
+            user.setEmailVerified(true);
+            user = userService.saveUser(user);
+            userRoleService.assignDefaultRole(user, roleService.getOrCreateRole("ROLE_USER"));
+            accountAccessService.recordAccountCreated(user);
+            auditLogService.log(AuditEventType.SIGNUP, user.getId(), email, "via email code");
+        } else {
+            if (!user.isAccountNonLocked()) {
+                loginHistoryService.recordFailure(email, "ACCOUNT_LOCKED");
+                throw new AuthException(
+                        ExitCode.ACCOUNT_LOCKED,
+                        "Account is temporarily locked due to too many failed login attempts. Try again later.");
+            }
+            if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+                user.setEmailVerified(true);
+                user = userRepository.save(user);
+                auditLogService.log(
+                        AuditEventType.EMAIL_VERIFIED, user.getId(), email, "via email code");
+            }
+        }
+
+        // An email code replaces the password, not the second factor.
+        if (user.isMfaEnabled()) {
+            String mfaToken =
+                    jwtTokenProvider.generateToken(
+                            user.getId(), "mfa_challenge", MFA_CHALLENGE_DURATION);
+            return AuthResponse.mfaRequired(mfaToken);
+        }
+
+        auditLogService.log(
+                AuditEventType.LOGIN_SUCCESS, user.getId(), user.getEmail(), "via email code");
+        loginHistoryService.recordSuccess(user, user.getEmail());
+        return issueTokens(user);
     }
 
     private void registerFailedLoginAttempt(User user) {
@@ -242,6 +339,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(googlePrincipal.email()).orElse(null);
 
         if (user == null) {
+            accountAccessService.assertMayCreateAccount(googlePrincipal.email());
             user = new User();
             user.setEmail(googlePrincipal.email());
             user.setName(googlePrincipal.name());
@@ -251,6 +349,7 @@ public class AuthServiceImpl implements AuthService {
             user.setEmailVerified(true);
             user = userService.saveUser(user);
             userRoleService.assignDefaultRole(user, roleService.getOrCreateRole("ROLE_USER"));
+            accountAccessService.recordAccountCreated(user);
             auditLogService.log(AuditEventType.SIGNUP, user.getId(), user.getEmail(), "via Google");
         } else if (user.getProvider() != AuthProvider.GOOGLE) {
             // Don't let a Google sign-in silently take over an account that was
@@ -265,7 +364,10 @@ public class AuthServiceImpl implements AuthService {
         return issueTokens(user);
     }
 
+    // Every completed sign-in ends here (password, MFA, email code, Google),
+    // so this is where the owner's account picks up ROLE_ADMIN.
     private AuthResponse issueTokens(User user) {
+        accountAccessService.ensureOwnerIsAdmin(user);
         String accessToken = jwtTokenProvider.generateToken(user);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 

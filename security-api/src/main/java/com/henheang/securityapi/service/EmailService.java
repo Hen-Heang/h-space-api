@@ -12,4 +12,8 @@ public interface EmailService {
     boolean sendAccountLockedEmail(String email, String name, String unlockUrl);
 
     boolean sendAccountUnlockedEmail(String email, String name);
+
+    boolean sendLoginCodeEmail(String email, String code, long expiresInMinutes);
+
+    boolean sendInviteEmail(String email, String signupUrl);
 }

@@ -20,8 +20,10 @@ import com.henheang.securityapi.payload.SignUpRequest;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.security.JwtTokenProvider;
 import com.henheang.securityapi.security.oauth.GoogleTokenVerifier;
+import com.henheang.securityapi.service.AccountAccessService;
 import com.henheang.securityapi.service.AccountUnlockService;
 import com.henheang.securityapi.service.AuditLogService;
+import com.henheang.securityapi.service.EmailLoginCodeService;
 import com.henheang.securityapi.service.EmailVerificationService;
 import com.henheang.securityapi.service.LoginHistoryService;
 import com.henheang.securityapi.service.MfaBackupCodeService;
@@ -34,6 +36,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -60,6 +63,8 @@ class AuthServiceImplTest {
     private GoogleTokenVerifier googleTokenVerifier;
     private EmailVerificationService emailVerificationService;
     private AccountUnlockService accountUnlockService;
+    private EmailLoginCodeService emailLoginCodeService;
+    private AccountAccessService accountAccessService;
     private AuthServiceImpl authService;
 
     @BeforeEach
@@ -79,6 +84,8 @@ class AuthServiceImplTest {
         googleTokenVerifier = mock(GoogleTokenVerifier.class);
         emailVerificationService = mock(EmailVerificationService.class);
         accountUnlockService = mock(AccountUnlockService.class);
+        emailLoginCodeService = mock(EmailLoginCodeService.class);
+        accountAccessService = mock(AccountAccessService.class);
 
         authService =
                 new AuthServiceImpl(
@@ -96,7 +103,9 @@ class AuthServiceImplTest {
                         loginHistoryService,
                         googleTokenVerifier,
                         emailVerificationService,
-                        accountUnlockService);
+                        accountUnlockService,
+                        emailLoginCodeService,
+                        accountAccessService);
         ReflectionTestUtils.setField(authService, "jwtExpirationString", "PT24H");
         ReflectionTestUtils.setField(authService, "maxFailedLoginAttempts", 5);
         ReflectionTestUtils.setField(authService, "accountLockDurationMinutes", 15L);
@@ -120,7 +129,7 @@ class AuthServiceImplTest {
     @Test
     void signup_createsUserAndIssuesTokens() {
         SignUpRequest request =
-                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123");
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123", "Jane.Doe");
         when(userService.existsByEmail(request.getEmail())).thenReturn(false);
         when(passwordEncoder.encode(request.getPassword())).thenReturn("hashed-password");
         when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
@@ -146,7 +155,7 @@ class AuthServiceImplTest {
     @Test
     void signup_withExistingEmail_throwsAuthException() {
         SignUpRequest request =
-                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123");
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123", "Jane.Doe");
         when(userService.existsByEmail(request.getEmail())).thenReturn(true);
 
         assertThatThrownBy(() -> authService.signup(request))
@@ -273,7 +282,7 @@ class AuthServiceImplTest {
     @Test
     void signup_withEmail_sendsVerificationEmail() {
         SignUpRequest request =
-                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123");
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123", "Jane.Doe");
         when(userService.existsByEmail(request.getEmail())).thenReturn(false);
         when(passwordEncoder.encode(request.getPassword())).thenReturn("hashed-password");
         when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
@@ -301,5 +310,242 @@ class AuthServiceImplTest {
         assertThat(user.getFailedLoginAttempts()).isEqualTo(5);
         assertThat(user.getLockedUntil()).isNotNull();
         verify(accountUnlockService).sendUnlockEmail(user);
+    }
+
+    @Test
+    void signup_storesUsernameLowercase() {
+        SignUpRequest request =
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123", "Jane.Doe");
+        when(userService.existsByEmail(request.getEmail())).thenReturn(false);
+        when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
+        User saved = persistedUser(UUID.randomUUID());
+        when(userService.saveUser(any(User.class))).thenReturn(saved);
+        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
+
+        authService.signup(request);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userService).saveUser(captor.capture());
+        assertThat(captor.getValue().getUsername()).isEqualTo("jane.doe");
+    }
+
+    @Test
+    void signup_withTakenUsername_throwsAuthException() {
+        SignUpRequest request =
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "password123", "Jane.Doe");
+        when(userService.existsByEmail(request.getEmail())).thenReturn(false);
+        when(userRepository.existsByUsername("jane.doe")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.signup(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((AuthException) ex).getExitCode())
+                                        .isEqualTo(ExitCode.USERNAME_ALREADY_EXISTS));
+
+        verify(userService, never()).saveUser(any());
+    }
+
+    @Test
+    void login_withUsername_looksUpByNormalizedUsername() {
+        LoginRequest request = new LoginRequest("  Jane.Doe ", "password123");
+        User user = persistedUser(UUID.randomUUID());
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(mock(Authentication.class));
+        when(userRepository.findByUsername("jane.doe")).thenReturn(Optional.of(user));
+        when(jwtTokenProvider.generateToken(user)).thenReturn("access-token");
+        when(refreshTokenService.createRefreshToken(user)).thenReturn(refreshTokenFor(user));
+
+        AuthResponse response = (AuthResponse) authService.login(request);
+
+        assertThat(response.getAccessToken()).isEqualTo("access-token");
+        ArgumentCaptor<UsernamePasswordAuthenticationToken> captor =
+                ArgumentCaptor.forClass(UsernamePasswordAuthenticationToken.class);
+        verify(authenticationManager).authenticate(captor.capture());
+        assertThat(captor.getValue().getPrincipal()).isEqualTo("Jane.Doe");
+        verify(userRepository, never()).findByEmail(any());
+    }
+
+    @Test
+    void isUsernameAvailable_rejectsMalformedAndTakenNames() {
+        when(userRepository.existsByUsername("taken")).thenReturn(true);
+
+        assertThat(authService.isUsernameAvailable("free_name")).isTrue();
+        assertThat(authService.isUsernameAvailable("Taken")).isFalse();
+        assertThat(authService.isUsernameAvailable("ab")).isFalse();
+        assertThat(authService.isUsernameAvailable("has@sign")).isFalse();
+        assertThat(authService.isUsernameAvailable("_leading")).isFalse();
+    }
+
+    @Test
+    void loginWithEmailCode_withWrongCode_throwsAndIssuesNothing() {
+        when(emailLoginCodeService.consumeCode("new@example.com", "123456")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.loginWithEmailCode("New@Example.com ", "123456"))
+                .isInstanceOf(AuthException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((AuthException) ex).getExitCode())
+                                        .isEqualTo(ExitCode.EMAIL_LOGIN_CODE_INVALID));
+
+        verify(userService, never()).saveUser(any());
+        verify(refreshTokenService, never()).createRefreshToken(any());
+    }
+
+    @Test
+    void loginWithEmailCode_forUnknownEmail_createsVerifiedAccount() {
+        when(emailLoginCodeService.consumeCode("new@example.com", "123456")).thenReturn(true);
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("new@example.com"))
+                .thenReturn(Optional.empty());
+        when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
+        User saved = persistedUser(UUID.randomUUID());
+        when(userService.saveUser(any(User.class))).thenReturn(saved);
+        when(jwtTokenProvider.generateToken(saved)).thenReturn("access-token");
+        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
+
+        AuthResponse response =
+                (AuthResponse) authService.loginWithEmailCode("New@Example.com", "123456");
+
+        assertThat(response.getAccessToken()).isEqualTo("access-token");
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userService).saveUser(captor.capture());
+        assertThat(captor.getValue().getEmail()).isEqualTo("new@example.com");
+        assertThat(captor.getValue().getEmailVerified()).isTrue();
+        assertThat(captor.getValue().getPassword()).isNull();
+    }
+
+    @Test
+    void loginWithEmailCode_verifiesAnUnverifiedExistingAccount() {
+        User user = persistedUser(UUID.randomUUID());
+        user.setEmailVerified(false);
+        when(emailLoginCodeService.consumeCode("user@example.com", "123456")).thenReturn(true);
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("user@example.com"))
+                .thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+        when(refreshTokenService.createRefreshToken(user)).thenReturn(refreshTokenFor(user));
+
+        authService.loginWithEmailCode("user@example.com", "123456");
+
+        assertThat(user.getEmailVerified()).isTrue();
+        verify(userService, never()).saveUser(any());
+    }
+
+    @Test
+    void loginWithEmailCode_withMfaEnabled_returnsChallengeInsteadOfTokens() {
+        User user = persistedUser(UUID.randomUUID());
+        user.setEmailVerified(true);
+        user.setMfaEnabled(true);
+        when(emailLoginCodeService.consumeCode("user@example.com", "123456")).thenReturn(true);
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("user@example.com"))
+                .thenReturn(Optional.of(user));
+        when(jwtTokenProvider.generateToken(eq(user.getId()), eq("mfa_challenge"), any()))
+                .thenReturn("mfa-challenge-token");
+
+        AuthResponse response =
+                (AuthResponse) authService.loginWithEmailCode("user@example.com", "123456");
+
+        assertThat(response.isMfaRequired()).isTrue();
+        assertThat(response.getAccessToken()).isNull();
+        verify(refreshTokenService, never()).createRefreshToken(any());
+    }
+
+    @Test
+    void loginWithEmailCode_forLockedAccount_throws() {
+        User user = persistedUser(UUID.randomUUID());
+        user.setEmailVerified(true);
+        user.setLockedUntil(java.time.Instant.now().plusSeconds(600));
+        when(emailLoginCodeService.consumeCode("user@example.com", "123456")).thenReturn(true);
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("user@example.com"))
+                .thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.loginWithEmailCode("user@example.com", "123456"))
+                .isInstanceOf(AuthException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((AuthException) ex).getExitCode())
+                                        .isEqualTo(ExitCode.ACCOUNT_LOCKED));
+        verify(refreshTokenService, never()).createRefreshToken(any());
+    }
+
+    private void refuseNewAccounts() {
+        AuthException refused = new AuthException(ExitCode.SIGNUP_INVITE_REQUIRED);
+        org.mockito.Mockito.doThrow(refused)
+                .when(accountAccessService)
+                .assertMayCreateAccount(any());
+    }
+
+    @Test
+    void signup_whenNotInvited_createsNothing() {
+        refuseNewAccounts();
+        SignUpRequest request =
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "Password123!", "jane");
+
+        assertThatThrownBy(() -> authService.signup(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((AuthException) ex).getExitCode())
+                                        .isEqualTo(ExitCode.SIGNUP_INVITE_REQUIRED));
+        verify(userService, never()).saveUser(any());
+    }
+
+    @Test
+    void signup_usesUpTheInvite() {
+        SignUpRequest request =
+                new SignUpRequest("Jane Doe", "jane@example.com", null, "Password123!", "jane");
+        when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
+        User saved = persistedUser(UUID.randomUUID());
+        when(userService.saveUser(any(User.class))).thenReturn(saved);
+        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
+
+        authService.signup(request);
+
+        verify(accountAccessService).recordAccountCreated(saved);
+    }
+
+    @Test
+    void loginWithEmailCode_forAnUninvitedNewAddress_createsNothing() {
+        refuseNewAccounts();
+        when(emailLoginCodeService.consumeCode("new@example.com", "123456")).thenReturn(true);
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("new@example.com"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.loginWithEmailCode("new@example.com", "123456"))
+                .isInstanceOf(AuthException.class);
+        verify(userService, never()).saveUser(any());
+    }
+
+    @Test
+    void sendEmailLoginCode_skipsAddressesThatCanNeitherSignInNorSignUp() {
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("new@example.com"))
+                .thenReturn(Optional.empty());
+        when(accountAccessService.mayCreateAccount("new@example.com")).thenReturn(false);
+
+        authService.sendEmailLoginCode("new@example.com");
+
+        verify(emailLoginCodeService, never()).sendCode(any());
+    }
+
+    @Test
+    void sendEmailLoginCode_sendsToExistingAccountsEvenWhenSignupIsClosed() {
+        when(userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc("user@example.com"))
+                .thenReturn(Optional.of(persistedUser(UUID.randomUUID())));
+
+        authService.sendEmailLoginCode("user@example.com");
+
+        verify(emailLoginCodeService).sendCode("user@example.com");
+    }
+
+    @Test
+    void everySignIn_checksWhetherTheOwnerNeedsAdmin() {
+        User user = persistedUser(UUID.randomUUID());
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(mock(Authentication.class));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(refreshTokenService.createRefreshToken(user)).thenReturn(refreshTokenFor(user));
+
+        authService.login(new LoginRequest("user@example.com", "password123"));
+
+        verify(accountAccessService).ensureOwnerIsAdmin(user);
     }
 }

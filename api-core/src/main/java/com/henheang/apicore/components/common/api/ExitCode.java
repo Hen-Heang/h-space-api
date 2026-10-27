@@ -19,12 +19,14 @@ public enum ExitCode {
     MFA_ALREADY_ENABLED(1009, "Multi-factor authentication is already enabled"),
     MFA_NOT_ENABLED(1010, "Multi-factor authentication is not enabled"),
     MFA_SETUP_REQUIRED(1011, "Multi-factor authentication setup must be started first"),
+    EMAIL_LOGIN_CODE_INVALID(1012, "Invalid or expired sign-in code"),
 
     // Registration Errors (1100-1199)
     REGISTRATION_FAILED(1100, "Registration failed"),
     EMAIL_ALREADY_EXISTS(1101, "Email already exists"),
     USERNAME_ALREADY_EXISTS(1102, "Username already exists"),
     PASSWORD_TOO_WEAK(1103, "Password does not meet strength requirements"),
+    SIGNUP_INVITE_REQUIRED(1104, "Sign-up is by invitation only"),
 
     // Password Reset Errors (1200-1299)
     PASSWORD_RESET_FAILED(1200, "Password reset failed"),

@@ -7,16 +7,15 @@ default local creds `postgres`/`123`.
 
 - Migrations live in `security-api/src/main/resources/db/migration/`:
   `V1__baseline.sql`, `V2__account_security_tokens.sql`,
-  `V3__mfa_recovery_codes.sql`. They run automatically on startup.
-- `spring.jpa.hibernate.ddl-auto` is `validate` in `local`/`dev`/`prod` —
-  Hibernate checks the entity mapping matches the schema but never
-  creates/alters anything. A mismatch fails fast at startup, it doesn't
-  silently patch itself.
-- `test` profile uses `create-drop` instead (fresh schema per test run,
-  bypasses Flyway) — this means CI/local tests don't exercise the actual
-  Flyway migrations, only the current entity mappings. A migration file
-  with a bug that only manifests against real migration history (vs. a
-  fresh create-drop schema) won't be caught by the test suite.
+  `V3__mfa_recovery_codes.sql`, `V4__username_and_email_login_codes.sql`,
+  `V5__signup_invites.sql`. They run automatically on startup.
+- `spring.jpa.hibernate.ddl-auto` is `validate` in every profile, `test`
+  included — Hibernate checks the entity mapping matches the schema but
+  never creates/alters anything. A mismatch fails fast at startup, it
+  doesn't silently patch itself.
+- Because `test` also validates, the integration tests run on the schema
+  Flyway builds from the migrations, so a broken migration or an
+  entity/migration mismatch fails the test suite.
 - Any entity change that affects the schema needs a new
   `V{n}__description.sql` file — see `.claude/prompts/migration.md` for the
   step-by-step. Never edit an already-applied migration file; add a new one.
@@ -35,6 +34,5 @@ default local creds `postgres`/`123`.
 ## CI
 
 `.github/workflows/ci.yml` runs `./gradlew clean build` against a real
-`postgres:16` service container (not against Flyway-applied history — the
-`test` profile's `create-drop` means Flyway migrations themselves aren't
-exercised in CI as of this writing).
+`postgres:16` service container; Flyway applies every migration to it
+before the tests run.

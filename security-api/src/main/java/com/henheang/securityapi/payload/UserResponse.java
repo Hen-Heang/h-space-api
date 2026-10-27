@@ -1,5 +1,6 @@
 package com.henheang.securityapi.payload;
 
+import java.util.List;
 import java.util.UUID;
 import lombok.*;
 
@@ -12,6 +13,8 @@ public class UserResponse {
 
     private String name;
 
+    private String username;
+
     private String email;
 
     private String phoneNumber;
@@ -22,10 +25,15 @@ public class UserResponse {
 
     private String provider;
 
+    // Role names, e.g. ROLE_USER / ROLE_ADMIN. Set by GET /api/auth/user so
+    // a client can show admin-only screens; null where it isn't filled in.
+    private List<String> roles;
+
     @Builder
     public UserResponse(
             UUID id,
             String name,
+            String username,
             String email,
             String phoneNumber,
             Boolean emailVerified,
@@ -33,6 +41,7 @@ public class UserResponse {
             String provider) {
         this.id = id;
         this.name = name;
+        this.username = username;
         this.email = email;
         this.phoneNumber = phoneNumber;
         this.emailVerified = emailVerified;

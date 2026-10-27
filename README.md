@@ -172,8 +172,11 @@ Once `security-api` is up, open the API docs:
 ### Authentication — `/api/auth`
 | Method | Path                          | Description |
 |--------|-------------------------------|-------------|
-| POST   | `/api/auth/signup`            | Register a new local account |
-| POST   | `/api/auth/login`              | Authenticate; returns tokens, or an MFA challenge if MFA is enabled |
+| POST   | `/api/auth/signup`            | Register a new local account (name, username, email, password). Invite-only by default — see below |
+| GET    | `/api/auth/username-available?username=` | Whether a username is well-formed and free |
+| POST   | `/api/auth/login`              | Authenticate with email **or username** + password; returns tokens, or an MFA challenge if MFA is enabled |
+| POST   | `/api/auth/email-code/request` | "Continue with email": email a 6-digit sign-in code (10 min, 60 s resend cooldown) |
+| POST   | `/api/auth/email-code/verify`  | Sign in with that code — creates the account if the email is new; MFA challenge if enabled |
 | POST   | `/api/auth/oauth2/google`      | Log in/sign up with a Google ID token (server-verified, no redirect flow) |
 | POST   | `/api/auth/refresh`            | Rotate a refresh token for a new access + refresh token pair (single-use) |
 | POST   | `/api/auth/logout`             | Revoke the refresh token and blacklist the current access token |
@@ -202,6 +205,19 @@ Once `security-api` is up, open the API docs:
 | PATCH  | `/api/users/{id}`  | ADMIN or self | Update a user |
 | DELETE | `/api/users/{id}`  | ADMIN or self | Soft-delete a user |
 | PATCH  | `/api/users/{id}/unlock` | ADMIN | Manually unlock a locked account |
+
+### Owner & invites — `/api/admin/invites` (`ROLE_ADMIN`)
+
+Sign-up is **invite-only** by default (`SIGNUP_MODE=invite-only`; set `open`
+to let anyone sign up). Existing accounts always sign in. The owner
+(`OWNER_EMAIL`) needs no invite and is made admin once their email is
+verified — the first admin always comes from here.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST   | `/api/admin/invites`      | Invite an email (re-sends if already pending); emails a link to `/register?email=…` |
+| GET    | `/api/admin/invites`      | List invites, pending and used |
+| DELETE | `/api/admin/invites/{id}` | Revoke a pending invite |
 
 ### RBAC — `/api/admin/permissions`, `/api/admin/roles`, `/api/admin/users/{userId}/roles`
 All endpoints below require the `ADMIN` role.

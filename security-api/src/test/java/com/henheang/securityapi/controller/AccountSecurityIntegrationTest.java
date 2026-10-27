@@ -76,13 +76,25 @@ class AccountSecurityIntegrationTest {
                 .content(objectMapper.writeValueAsString(body));
     }
 
+    private String uniqueUsername() {
+        return "u" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
     private String uniqueEmail() {
         return "user-" + UUID.randomUUID() + "@example.com";
     }
 
     private void signUp(String email, RequestPostProcessor ip) throws Exception {
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
     }
 

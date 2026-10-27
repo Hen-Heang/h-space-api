@@ -2,6 +2,7 @@ package com.henheang.securityapi.config;
 
 import com.henheang.securityapi.domain.Permission;
 import com.henheang.securityapi.domain.Role;
+import com.henheang.securityapi.service.AccountAccessService;
 import com.henheang.securityapi.service.PermissionService;
 import com.henheang.securityapi.service.RoleService;
 import java.util.List;
@@ -15,6 +16,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private final RoleService roleService;
     private final PermissionService permissionService;
+    private final AccountAccessService accountAccessService;
 
     @Override
     public void run(String... args) {
@@ -58,6 +60,10 @@ public class DataInitializer implements CommandLineRunner {
                         auditRead)) {
             adminRole = grantIfMissing(adminRole, permission);
         }
+
+        // Nothing else ever grants ROLE_ADMIN, so the owner (app.owner-email)
+        // is how the first admin exists. Also, re-checked on every sign-in.
+        accountAccessService.ensureOwnerIsAdmin();
     }
 
     // getOrCreateRole/getOrCreatePermission are idempotent, but grantPermission

@@ -2,6 +2,7 @@ package com.henheang.securityapi.controller;
 
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,9 +15,11 @@ import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.EmailVerificationTokenRepository;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.service.EmailService;
+import com.henheang.securityapi.validation.UsernameRules;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -57,7 +61,16 @@ class AuthControllerIntegrationTest {
         when(emailService.sendVerificationEmail(any(), any(), any())).thenReturn(true);
         when(emailService.sendAccountLockedEmail(any(), any(), any())).thenReturn(true);
         when(emailService.sendAccountUnlockedEmail(any(), any())).thenReturn(true);
+        when(emailService.sendLoginCodeEmail(any(), any(), anyLong()))
+                .thenAnswer(
+                        invocation -> {
+                            lastLoginCode.set(invocation.getArgument(1));
+                            return true;
+                        });
     }
+
+    // The code the mocked EmailService was last asked to send.
+    private final AtomicReference<String> lastLoginCode = new AtomicReference<>();
 
     private RequestPostProcessor uniqueClientIp() {
         String ip = "10.11.12." + IP_SUFFIX.getAndIncrement();
@@ -73,6 +86,10 @@ class AuthControllerIntegrationTest {
                 .with(ip)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body));
+    }
+
+    private String uniqueUsername() {
+        return "u" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 
     private String uniqueEmail() {
@@ -94,9 +111,14 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         Map<String, String> signUpRequest =
                 Map.of(
-                        "name", "Jane Doe",
-                        "email", uniqueEmail(),
-                        "password", "Password123!");
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        uniqueEmail(),
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
 
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
                 .andExpect(status().isOk())
@@ -110,7 +132,15 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
 
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
 
@@ -133,7 +163,15 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
         verifyEmailFor(email, ip);
 
@@ -149,7 +187,15 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
 
         Map<String, String> loginRequest = Map.of("email", email, "password", "Password123!");
@@ -162,7 +208,15 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
         verifyEmailFor(email, ip);
 
@@ -176,7 +230,15 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
         String signUpBody =
                 mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
                         .andExpect(status().isOk())
@@ -208,7 +270,15 @@ class AuthControllerIntegrationTest {
         RequestPostProcessor ip = uniqueClientIp();
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
-                Map.of("name", "Jane Doe", "email", email, "password", "Password123!");
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
         String signUpBody =
                 mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
                         .andExpect(status().isOk())
@@ -241,6 +311,166 @@ class AuthControllerIntegrationTest {
         // Refresh token is now revoked.
         mockMvc.perform(jsonPost("/api/auth/refresh", logoutRequest, ip))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void login_withUsernameInAnyCase_returnsTokens() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        String username = uniqueUsername();
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/signup",
+                                Map.of(
+                                        "name",
+                                        "Jane Doe",
+                                        "email",
+                                        email,
+                                        "password",
+                                        "Password123!",
+                                        "username",
+                                        username),
+                                ip))
+                .andExpect(status().isOk());
+        verifyEmailFor(email, ip);
+
+        Map<String, String> loginRequest =
+                Map.of("identifier", username.toUpperCase(), "password", "Password123!");
+        mockMvc.perform(jsonPost("/api/auth/login", loginRequest, ip))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken", notNullValue()));
+    }
+
+    @Test
+    void login_withWrongPassword_reportsTheRealErrorCodeAndMessage() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        Map<String, String> loginRequest =
+                Map.of("identifier", "nobody-here", "password", "Password123!");
+
+        mockMvc.perform(jsonPost("/api/auth/login", loginRequest, ip))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1001))
+                .andExpect(
+                        jsonPath("$.status.message").value("Invalid email, username or password"));
+    }
+
+    @Test
+    void signup_withTakenUsername_returns400() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String username = uniqueUsername();
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/signup",
+                                Map.of(
+                                        "name",
+                                        "Jane Doe",
+                                        "email",
+                                        uniqueEmail(),
+                                        "password",
+                                        "Password123!",
+                                        "username",
+                                        username),
+                                ip))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(
+                        get("/api/auth/username-available")
+                                .with(ip)
+                                .param("username", username.toUpperCase()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.available").value(false));
+
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/signup",
+                                Map.of(
+                                        "name",
+                                        "John Doe",
+                                        "email",
+                                        uniqueEmail(),
+                                        "password",
+                                        "Password123!",
+                                        "username",
+                                        username.toUpperCase()),
+                                ip))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.code").value(1102));
+    }
+
+    @Test
+    void signup_withInvalidPayload_reportsReadableFieldErrors() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        Map<String, String> invalidRequest =
+                Map.of(
+                        "name", "Jane Doe",
+                        "email", uniqueEmail(),
+                        "password", "Password123!",
+                        "username", "a@b");
+
+        mockMvc.perform(jsonPost("/api/auth/signup", invalidRequest, ip))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.message").value(UsernameRules.MESSAGE))
+                .andExpect(jsonPath("$.data.username").value(UsernameRules.MESSAGE));
+    }
+
+    // Not wrapped in the class-level test transaction: consumeCode runs in its
+    // own transaction and must see the code that /request committed.
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void emailCode_signsUpAnUnknownAddressAndSignsItIn() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+
+        mockMvc.perform(jsonPost("/api/auth/email-code/request", Map.of("email", email), ip))
+                .andExpect(status().isOk());
+
+        String body =
+                mockMvc.perform(
+                                jsonPost(
+                                        "/api/auth/email-code/verify",
+                                        Map.of("email", email, "code", lastLoginCode.get()),
+                                        ip))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.refreshToken", notNullValue()))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + readJsonField(body, "accessToken")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value(email))
+                .andExpect(jsonPath("$.data.emailVerified").value(true));
+
+        // One-time: the same code can't be used again.
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/email-code/verify",
+                                Map.of("email", email, "code", lastLoginCode.get()),
+                                ip))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void emailCode_withAWrongCode_returns401WithItsErrorCode() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        mockMvc.perform(jsonPost("/api/auth/email-code/request", Map.of("email", email), ip))
+                .andExpect(status().isOk());
+        String wrong = "000000".equals(lastLoginCode.get()) ? "111111" : "000000";
+
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/email-code/verify",
+                                Map.of("email", email, "code", wrong),
+                                ip))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1012));
     }
 
     @SuppressWarnings("unchecked")

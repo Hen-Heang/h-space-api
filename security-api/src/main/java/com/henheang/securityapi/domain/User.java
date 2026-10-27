@@ -26,7 +26,6 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 
 @Entity
 @Table(name = "users")
@@ -38,12 +37,20 @@ import org.springframework.security.core.userdetails.UserDetails;
 @NoArgsConstructor
 @Getter
 @Setter
-public class User extends SoftDeletableEntity implements UserDetails {
+// Spring Security authenticates against UserPrincipal (built from this entity
+// in CustomUserDetailsService), so User itself isn't a UserDetails - which
+// also frees getUsername() for the real username below.
+public class User extends SoftDeletableEntity {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Email should be valid")
     @Column(nullable = false)
     private String email;
+
+    // Optional second sign-in identifier, always stored lowercase. Null for
+    // accounts created by Google or "continue with email".
+    @Column(name = "username", length = 30)
+    private String username;
 
     @Column(name = "phone_number")
     private String phoneNumber;
@@ -108,7 +115,6 @@ public class User extends SoftDeletableEntity implements UserDetails {
                 .collect(Collectors.toSet());
     }
 
-    @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Set<GrantedAuthority> authorities = new HashSet<>();
         getRoles().forEach(role -> authorities.add(new SimpleGrantedAuthority(role.getName())));
@@ -119,28 +125,7 @@ public class User extends SoftDeletableEntity implements UserDetails {
         return authorities;
     }
 
-    @Override
-    public String getUsername() {
-        return this.email;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
     public boolean isAccountNonLocked() {
         return lockedUntil == null || lockedUntil.isBefore(Instant.now());
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return this.emailVerified;
     }
 }

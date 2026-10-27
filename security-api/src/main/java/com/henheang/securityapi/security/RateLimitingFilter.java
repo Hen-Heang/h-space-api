@@ -33,6 +33,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                     "/api/auth/login",
                     "/api/auth/signup",
                     "/api/auth/forgot-password",
+                    "/api/auth/email-code/request",
+                    "/api/auth/email-code/verify",
                     "/api/auth/mfa/setup",
                     "/api/auth/mfa/enable",
                     "/api/auth/mfa/disable",
