@@ -18,6 +18,16 @@ project has no released versions yet, so everything lives under
   against a real Postgres service container on every push/PR to `main`.
 - `.editorconfig`, `.env.example`, `ROADMAP.md`, `SECURITY.md`,
   `CONTRIBUTING.md`, `LICENSE` (MIT), this `CHANGELOG.md`.
+- Docker support for `security-api`: a multi-stage `Dockerfile` (non-root
+  JRE 17 runtime with a built-in healthcheck) and `compose.yaml` that runs
+  it with PostgreSQL 16 via `docker compose up --build` — see
+  `docs/build-and-run.md`.
+- Public `/actuator/health` (plus `/liveness` and `/readiness`) in
+  `security-api` for container healthchecks; it checks the database, hides
+  details, and no other actuator endpoint is exposed.
+- CI `image` job: builds the `security-api` image and smoke-tests it against
+  Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
+  (`latest`, `sha-<commit>`, version tags) and records the verified digest.
 
 ### Changed
 - Renamed the shared library module `common-api` to `api-core` and its
@@ -33,6 +43,8 @@ project has no released versions yet, so everything lives under
   quality tooling.
 
 ### Fixed
+- `gradlew` was committed without its executable bit, so `./gradlew` failed
+  with "permission denied" on Linux/macOS checkouts, including CI.
 - `todoapi`'s test class was incorrectly annotated `@SpringBootApplication`
   in addition to the real `TodoapiApplication`, causing Spring Boot to find
   two boot configuration classes and fail context loading in tests.
