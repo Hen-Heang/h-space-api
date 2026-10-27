@@ -9,11 +9,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @SpringBootApplication
 @EntityScan(basePackages = {"com.henheang.openapi.domain", "com.henheang.securityapi.domain"})
 @ComponentScan(
-        basePackages = {
-            "com.henheang.openapi",
-            "com.henheang.securityapi",
-            "com.henheang.commonapi"
-        })
+        basePackages = {"com.henheang.openapi", "com.henheang.securityapi", "com.henheang.apicore"})
 @EnableJpaRepositories(
         basePackages = {"com.henheang.openapi.repository", "com.henheang.securityapi.repository"})
 public class OpenApiApplication {

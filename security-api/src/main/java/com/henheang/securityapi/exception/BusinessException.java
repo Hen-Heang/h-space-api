@@ -1,6 +1,6 @@
 package com.henheang.securityapi.exception;
 
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import lombok.Getter;
 
 @Getter

@@ -31,7 +31,8 @@ public class EmailServiceImpl implements EmailService {
         Context context = new Context();
         context.setVariable("name", name != null ? name : "User");
         context.setVariable("resetUrl", resetUrl);
-        return sendHtmlEmail(email, "Reset Your H-Space API Password", "password-reset-email", context);
+        return sendHtmlEmail(
+                email, "Reset Your H-Space API Password", "password-reset-email", context);
     }
 
     @Override

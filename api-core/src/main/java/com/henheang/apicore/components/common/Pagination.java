@@ -1,4 +1,4 @@
-package com.henheang.commonapi.components.common;
+package com.henheang.apicore.components.common;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;

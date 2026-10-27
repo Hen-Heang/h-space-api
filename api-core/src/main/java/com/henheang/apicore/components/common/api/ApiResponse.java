@@ -1,4 +1,4 @@
-package com.henheang.commonapi.components.common.api;
+package com.henheang.apicore.components.common.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;

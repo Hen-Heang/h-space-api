@@ -14,7 +14,7 @@
 ./gradlew :open-api:bootRun         # port 8082, needs security-api's JWT
 ```
 
-- Keep the module dependency direction intact: `common-api` → `security-api`
+- Keep the module dependency direction intact: `api-core` → `security-api`
   → `open-api` (never introduce a cycle — see `docs/architecture.md`).
 - Put new code in the matching package (`config/ controller/ domain/
   repository/ security/ service/(+impl/) payload/ exception/`) rather than

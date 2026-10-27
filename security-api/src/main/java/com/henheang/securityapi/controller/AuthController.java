@@ -1,6 +1,6 @@
 package com.henheang.securityapi.controller;
 
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.RefreshToken;
 import com.henheang.securityapi.domain.User;

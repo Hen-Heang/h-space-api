@@ -3,7 +3,7 @@
 Use for adding new user-facing behavior (endpoint, service capability, etc.).
 
 ```
-Add {{feature}} to {{module: common-api|security-api|open-api}}.
+Add {{feature}} to {{module: api-core|security-api|open-api}}.
 
 Context:
 - {{why this is needed / linked issue}}
@@ -12,7 +12,7 @@ Requirements:
 - {{behavior, inputs/outputs, edge cases}}
 
 Constraints:
-- Respect module dependency direction: common-api → security-api → open-api
+- Respect module dependency direction: api-core → security-api → open-api
   (.claude/rules/architecture.md). Don't introduce a cycle.
 - Package layout: config/ controller/ domain/ repository/ security/
   service/(+impl/) payload/ exception/ — put new code in the matching

@@ -8,7 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.EmailVerificationToken;
 import com.henheang.securityapi.domain.User;

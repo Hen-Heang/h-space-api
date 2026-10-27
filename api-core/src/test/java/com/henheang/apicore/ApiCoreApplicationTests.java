@@ -1,10 +1,10 @@
-package com.henheang.commonapi;
+package com.henheang.apicore;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class CommonApiApplicationTests {
+class ApiCoreApplicationTests {
 
     @Test
     void contextLoads() {}

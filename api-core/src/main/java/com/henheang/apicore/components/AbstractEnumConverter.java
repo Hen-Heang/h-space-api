@@ -1,4 +1,4 @@
-package com.henheang.commonapi.components;
+package com.henheang.apicore.components;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;

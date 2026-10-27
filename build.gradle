@@ -102,8 +102,8 @@ subprojects {
     }
 }
 
-// Configure common-api module (base module - no dependencies on other modules)
-project(':common-api') {
+// Configure api-core module (base module - no dependencies on other modules)
+project(':api-core') {
     dependencies {
         // Only basic dependencies, no project dependencies
         implementation "org.mapstruct:mapstruct:${mapstructVersion}"
@@ -116,8 +116,8 @@ project(':common-api') {
 // Configure security-api module
 project(':security-api') {
     dependencies {
-        // Depend on common-api
-        implementation project(':common-api')
+        // Depend on api-core
+        implementation project(':api-core')
 
         // Schema migrations - the only schema authority now (see
         // docs/database.md); ddl-auto is "validate" in every profile.
@@ -167,8 +167,8 @@ project(':security-api') {
 // Configure open-api module
 project(':open-api') {
     dependencies {
-        // Depend on both common-api and security-api
-        implementation project(':common-api')
+        // Depend on both api-core and security-api
+        implementation project(':api-core')
         implementation project(':security-api')
 
         // Security + JWT (open-api validates tokens issued by security-api)

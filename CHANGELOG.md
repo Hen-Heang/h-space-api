@@ -8,6 +8,8 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- `api-core` can be published as `com.henheang:api-core`
+  (`./gradlew :api-core:publishToMavenLocal`) for reuse by other APIs.
 - `local` / `dev` / `test` / `prod` Spring configuration profiles for
   `common-api`, `security-api`, and `todoapi`.
 - Spotless (Google Java Format), Checkstyle, PMD, and JaCoCo, wired into
@@ -18,6 +20,8 @@ project has no released versions yet, so everything lives under
   `CONTRIBUTING.md`, `LICENSE` (MIT), this `CHANGELOG.md`.
 
 ### Changed
+- Renamed the shared library module `common-api` to `api-core` and its
+  package `com.henheang.commonapi` to `com.henheang.apicore`.
 - Deduplicated per-module `build.gradle` files — group/version/plugins/
   repositories/test dependencies now live once in the root `build.gradle`;
   shared dependency versions (mapstruct, springdoc, jjwt) centralized via an

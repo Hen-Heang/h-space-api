@@ -7,5 +7,5 @@ automatically.
 - [ ] DTO <-> entity mapping via MapStruct, not hand-written
 - [ ] Boilerplate via Lombok, not hand-written getters/builders/constructors
 - [ ] New code in the right package (`config/controller/domain/repository/security/service/payload/exception`)
-- [ ] No cross-module dependency cycles (`common-api` <- `security-api` <- `open-api`)
+- [ ] No cross-module dependency cycles (`api-core` <- `security-api` <- `open-api`)
 - [ ] Tests added/updated, `./gradlew build` passes

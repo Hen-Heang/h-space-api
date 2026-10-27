@@ -2,7 +2,7 @@
 
 Full architecture rule: `.claude/rules/architecture.md` / `docs/architecture.md`.
 
-## `common-api` — `com.henheang.commonapi`
+## `api-core` — `com.henheang.apicore`
 
 Base library, no bootJar, not runnable. Packages:
 `components/`, `components/common/`, `components/common/api/`.
@@ -37,7 +37,7 @@ security/(+crypto/, +oauth/) service/(+impl/) utils/ validation/`.
   translation; see api-style.md for how it actually maps statuses.
 - Schema is Flyway-managed from this module
   (`src/main/resources/db/migration/`) — see `.claude/context/database.md`.
-- Depends on `common-api` only.
+- Depends on `api-core` only.
 
 ## `open-api` — `com.henheang.openapi` (port 8082)
 
@@ -45,7 +45,7 @@ Packages: `config/ controller/ domain/ enums/ payload/ repository/ service/
 util/`.
 
 - Sample business API (to-do lists/items) secured by JWTs issued by
-  `security-api`. Depends on both `common-api` and `security-api`.
+  `security-api`. Depends on both `api-core` and `security-api`.
 
 ## `legacy/spring-jwt-auth/`
 

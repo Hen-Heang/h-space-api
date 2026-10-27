@@ -1,4 +1,4 @@
-package com.henheang.commonapi.components.common.api;
+package com.henheang.apicore.components.common.api;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;

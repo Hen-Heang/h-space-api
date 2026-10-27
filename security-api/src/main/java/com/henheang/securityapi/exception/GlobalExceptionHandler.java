@@ -1,8 +1,8 @@
 package com.henheang.securityapi.exception;
 
-import com.henheang.commonapi.components.common.api.ApiResponse;
-import com.henheang.commonapi.components.common.api.ApiStatus;
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ApiResponse;
+import com.henheang.apicore.components.common.api.ApiStatus;
+import com.henheang.apicore.components.common.api.ExitCode;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.dao.OptimisticLockingFailureException;

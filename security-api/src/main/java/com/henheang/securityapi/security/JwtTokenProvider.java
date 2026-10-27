@@ -1,6 +1,6 @@
 package com.henheang.securityapi.security;
 
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.AuthException;
 import io.jsonwebtoken.Claims;
