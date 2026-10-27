@@ -74,12 +74,25 @@ supabase:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  # The owner's account is made ROLE_ADMIN once its email is verified (at
+  # sign-in and at startup), and may always sign up. Empty = no owner.
+  owner-email: ${OWNER_EMAIL:}
+  signup:
+    # invite-only: new accounts need an invite (POST /api/admin/invites) or
+    # the owner's email. open: anyone may sign up. Anything else counts as
+    # invite-only. Existing accounts sign in either way.
+    mode: ${SIGNUP_MODE:invite-only}
   reset-password:
     token-expiration-minutes: 1440
   email:
     from-name: H-Space API Team
   email-verification:
     token-expiration-minutes: 1440
+  # "Continue with email" one-time sign-in codes (EmailLoginCodeServiceImpl).
+  email-login:
+    code-expiration-minutes: 10
+    resend-cooldown-seconds: 60
+    max-attempts: 5
   account-lock:
     max-failed-attempts: 5
     lock-duration-minutes: 15

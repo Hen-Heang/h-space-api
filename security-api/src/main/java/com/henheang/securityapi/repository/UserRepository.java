@@ -10,6 +10,16 @@ import org.springframework.data.repository.query.Param;
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
+    // Emails are stored as typed; "continue with email" matches them
+    // case-insensitively so a differently-cased address finds the same account.
+    Optional<User> findFirstByEmailIgnoreCaseOrderByCreatedAtAsc(String email);
+
+    // Usernames are stored lowercase (UsernameRules.normalize) - pass a
+    // normalized value.
+    Optional<User> findByUsername(String username);
+
+    boolean existsByUsername(String username);
+
     Optional<User> findByName(String name);
 
     @Query("SELECT u FROM User u WHERE u.email = :identifier OR u.phoneNumber = :identifier")

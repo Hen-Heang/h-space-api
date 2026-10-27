@@ -61,6 +61,21 @@ public class EmailServiceImpl implements EmailService {
                 email, "Your H-Space API Account Has Been Unlocked", "account-unlocked", context);
     }
 
+    @Override
+    public boolean sendLoginCodeEmail(String email, String code, long expiresInMinutes) {
+        Context context = new Context();
+        context.setVariable("code", code);
+        context.setVariable("expiresInMinutes", expiresInMinutes);
+        return sendHtmlEmail(email, code + " is your H-Space sign-in code", "login-code", context);
+    }
+
+    @Override
+    public boolean sendInviteEmail(String email, String signupUrl) {
+        Context context = new Context();
+        context.setVariable("signupUrl", signupUrl);
+        return sendHtmlEmail(email, "You're invited to H-Space", "invite", context);
+    }
+
     private boolean sendHtmlEmail(String email, String subject, String template, Context context) {
         try {
             log.info("Preparing to send '{}' email to: {}", template, email);

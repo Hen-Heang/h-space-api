@@ -10,7 +10,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.exception.BusinessException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;

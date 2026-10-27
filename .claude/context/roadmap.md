@@ -18,7 +18,7 @@ Full list: `ROADMAP.md` (informal, living, not a commitment/timeline).
 - Checkstyle/PMD tightening (`ignoreFailures = true` currently) — deferred
   until reports are clean or the ruleset is trimmed.
 - JaCoCo coverage gate — reports generated, no minimum enforced yet.
-- `common-api`'s `application.yml` carrying a full Spring Boot config just to
+- `api-core`'s `application.yml` carrying a full Spring Boot config just to
   let its `@SpringBootTest` context test boot — worth revisiting.
 - Version catalog migration (`ext` block in root `build.gradle` →
   `gradle/libs.versions.toml`).

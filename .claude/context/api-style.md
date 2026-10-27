@@ -1,10 +1,10 @@
 # API Response Style — How It Actually Works
 
 Rule-level summary: `.claude/rules/coding-style.md`. This file documents the
-actual envelope mechanics in `common-api`/`security-api`, including quirks
+actual envelope mechanics in `api-core`/`security-api`, including quirks
 worth knowing before adding a new endpoint.
 
-## The envelope classes (`common-api`, `components/common/api/`)
+## The envelope classes (`api-core`, `components/common/api/`)
 
 - `ApiResponse<T>` — fields `statusCode` (an `ApiStatus`, serialized as JSON
   key `"status"`), `data` (generic `T`), `common` (`Common`, omitted from
@@ -27,7 +27,7 @@ worth knowing before adding a new endpoint.
 
 ## A second, parallel status enum: `ExitCode`
 
-`common-api` also defines `ExitCode` (auth 1000s, registration 1100s,
+`api-core` also defines `ExitCode` (auth 1000s, registration 1100s,
 password reset 1200s, OAuth 1300s, email verification 1400s, account
 unlock 1500s, system 5000s, 9999 unknown), with its own `fromCode(int)`
 lookup. In practice `security-api`'s domain/auth exceptions

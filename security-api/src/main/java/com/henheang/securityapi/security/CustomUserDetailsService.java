@@ -4,6 +4,7 @@ import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.ResourceNotFoundException;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.utils.PhoneNumberUtil;
+import com.henheang.securityapi.validation.UsernameRules;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,16 +18,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class CustomUserDetailsService implements UserDetailsService {
     private final UserRepository userRepository;
 
+    // `identifier` is whatever the login form's single field held: an email,
+    // or a username (which can never contain '@' - see UsernameRules).
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+        String trimmed = identifier == null ? "" : identifier.trim();
         User user =
-                userRepository
-                        .findByEmail(email)
+                (UsernameRules.isEmailIdentifier(trimmed)
+                                ? userRepository.findByEmail(trimmed)
+                                : userRepository.findByUsername(UsernameRules.normalize(trimmed)))
                         .orElseThrow(
-                                () ->
-                                        new UsernameNotFoundException(
-                                                "User not found with email : " + email));
+                                () -> new UsernameNotFoundException("User not found: " + trimmed));
 
         return UserPrincipal.create(user);
     }

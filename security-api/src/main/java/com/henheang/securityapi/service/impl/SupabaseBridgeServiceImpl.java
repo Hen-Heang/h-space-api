@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.BusinessException;
 import com.henheang.securityapi.payload.SupabaseTokenResponse;

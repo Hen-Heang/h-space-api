@@ -4,7 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.exception.AuthException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;

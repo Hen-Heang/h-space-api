@@ -4,13 +4,14 @@
   local creds `postgres`/`123`.
 - Schema is managed by **Flyway** (`security-api/src/main/resources/db/migration/`,
   currently `V1__baseline.sql`, `V2__account_security_tokens.sql`,
-  `V3__mfa_recovery_codes.sql`) — migrations run automatically on startup.
+  `V3__mfa_recovery_codes.sql`, `V4__username_and_email_login_codes.sql`,
+  `V5__signup_invites.sql`) — migrations run automatically on startup.
   In `security-api`, `spring.jpa.hibernate.ddl-auto` is `validate` in every
   profile, `test` included — Hibernate never creates/alters the schema
   itself, it only checks it matches, so tests run against the real Flyway
   schema. A schema change means adding a new `V{n}__description.sql` file,
   not relying on Hibernate auto-sync.
-- `open-api` and `common-api` tests use `create-drop`. They share
+- `open-api` and `api-core` tests use `create-drop`. They share
   `jwt_auth_test` with `security-api`, so `open-api`'s tests run in their own
   schema (`open_api_test`, set in its `application-test.yml`) — otherwise its
   create-drop would drop `security-api`'s tables in `public` and fail the next

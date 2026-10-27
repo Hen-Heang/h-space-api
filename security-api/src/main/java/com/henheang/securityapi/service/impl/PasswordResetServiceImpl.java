@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.PasswordResetToken;
 import com.henheang.securityapi.domain.User;

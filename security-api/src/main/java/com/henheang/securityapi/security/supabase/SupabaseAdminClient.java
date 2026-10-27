@@ -1,6 +1,6 @@
 package com.henheang.securityapi.security.supabase;
 
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.exception.BusinessException;
 import java.util.Map;
 import java.util.UUID;

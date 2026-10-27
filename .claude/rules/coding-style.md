@@ -4,9 +4,9 @@ Full detail: `docs/coding-standards.md`.
 
 - Use Lombok for boilerplate (getters/builders/constructors) — don't
   hand-write what Lombok annotations already generate.
-- Use MapStruct for DTO ↔ entity mapping in `common-api` and `security-api`
+- Use MapStruct for DTO ↔ entity mapping in `api-core` and `security-api`
   — don't hand-write mappers.
-- Every API response is wrapped in `common-api`'s
+- Every API response is wrapped in `api-core`'s
   `ApiResponse`/`ApiStatus`/`StatusCode` envelope. Never return a raw DTO or
   a bare `ResponseEntity<T>` body.
 - Throw domain/custom exceptions from services and controllers; don't

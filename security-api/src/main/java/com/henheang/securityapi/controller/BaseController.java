@@ -1,9 +1,9 @@
 package com.henheang.securityapi.controller;
 
-import com.henheang.commonapi.components.common.api.ApiResponse;
-import com.henheang.commonapi.components.common.api.Common;
-import com.henheang.commonapi.components.common.api.EmptyJsonResponse;
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.ApiResponse;
+import com.henheang.apicore.components.common.api.Common;
+import com.henheang.apicore.components.common.api.EmptyJsonResponse;
+import com.henheang.apicore.components.common.api.StatusCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -69,6 +69,7 @@ public class UserServiceImpl implements UserService {
                                 new UserResponse(
                                         user.getId(),
                                         user.getName(),
+                                        user.getUsername(),
                                         user.getEmail(),
                                         user.getPhoneNumber(),
                                         user.getEmailVerified(),
@@ -115,6 +116,7 @@ public class UserServiceImpl implements UserService {
         return UserResponse.builder()
                 .id(saved.getId())
                 .name(saved.getName())
+                .username(saved.getUsername())
                 .email(saved.getEmail())
                 .phoneNumber(saved.getPhoneNumber())
                 .emailVerified(saved.getEmailVerified())

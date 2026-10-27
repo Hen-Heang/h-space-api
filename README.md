@@ -23,7 +23,7 @@ H-Space API is a Gradle multi-project build with three modules. Dependencies flo
 one direction only (no cycles):
 
 ```
-common-api   (base library — shared utilities, no app of its own)
+api-core   (base library — shared utilities, no app of its own)
     ▲
     │
 security-api (authentication service — JWT, Google login, MFA, audit)  ── runnable
@@ -34,7 +34,7 @@ open-api     (sample business API protected by security-api)           ── ru
 
 | Module         | Port  | bootJar | Purpose |
 |----------------|-------|---------|---------|
-| `common-api`   | —     | ❌ off  | Shared library: API response envelopes (`ApiResponse`, `ApiStatus`, `StatusCode`), pagination, enum converters, interceptors. Built as a plain `jar` and consumed by the other modules — not run directly. |
+| `api-core`   | —     | ❌ off  | Shared library: API response envelopes (`ApiResponse`, `ApiStatus`, `StatusCode`), pagination, enum converters, interceptors. Built as a plain `jar` and consumed by the other modules — not run directly. |
 | `security-api` | 8080  | ✅ on   | Core authentication service: signup/login, JWT issue/refresh/revocation, Google ID-token login, MFA (TOTP + backup codes), email verification, password reset, account lockout/unlock, RBAC (roles/permissions), user management, audit logging, rate limiting, Swagger UI. |
 | `open-api`      | 8082  | ✅ on   | Example business API (to-do lists/items) that depends on `security-api` for authentication. |
 
@@ -64,7 +64,7 @@ createdb -U postgres jwt_auth
 
 ### Configuration profiles
 
-Each runnable module (`common-api`'s context, `security-api`, `open-api`) loads
+Each runnable module (`api-core`'s context, `security-api`, `open-api`) loads
 `application.yml` plus a profile file selected by `SPRING_PROFILES_ACTIVE`
 (Spring's standard `application-{profile}.yml` convention):
 
@@ -138,8 +138,27 @@ Each runnable module is started with the Spring Boot plugin:
 ./gradlew :open-api:bootRun
 ```
 
-`common-api` is a library (`bootJar` disabled) and is **not** run directly — it
+`api-core` is a library (`bootJar` disabled) and is **not** run directly — it
 is pulled in as a dependency by the other two.
+
+### Using `api-core` in another API
+
+`api-core` is published as a plain Maven artifact (`com.henheang:api-core`),
+so other Spring Boot projects can reuse the same `ApiResponse` envelope:
+
+```bash
+./gradlew :api-core:publishToMavenLocal   # installs into ~/.m2
+```
+
+```groovy
+// consumer build.gradle
+repositories { mavenLocal(); mavenCentral() }
+dependencies { implementation 'com.henheang:api-core:0.0.1-SNAPSHOT' }
+```
+
+Classes live under `com.henheang.apicore`. The published jar excludes
+`api-core`'s own `application*.yml`, so it never overrides the consumer's
+config.
 
 Once `security-api` is up, open the API docs:
 
@@ -153,8 +172,11 @@ Once `security-api` is up, open the API docs:
 ### Authentication — `/api/auth`
 | Method | Path                          | Description |
 |--------|-------------------------------|-------------|
-| POST   | `/api/auth/signup`            | Register a new local account |
-| POST   | `/api/auth/login`              | Authenticate; returns tokens, or an MFA challenge if MFA is enabled |
+| POST   | `/api/auth/signup`            | Register a new local account (name, username, email, password). Invite-only by default — see below |
+| GET    | `/api/auth/username-available?username=` | Whether a username is well-formed and free |
+| POST   | `/api/auth/login`              | Authenticate with email **or username** + password; returns tokens, or an MFA challenge if MFA is enabled |
+| POST   | `/api/auth/email-code/request` | "Continue with email": email a 6-digit sign-in code (10 min, 60 s resend cooldown) |
+| POST   | `/api/auth/email-code/verify`  | Sign in with that code — creates the account if the email is new; MFA challenge if enabled |
 | POST   | `/api/auth/oauth2/google`      | Log in/sign up with a Google ID token (server-verified, no redirect flow) |
 | POST   | `/api/auth/refresh`            | Rotate a refresh token for a new access + refresh token pair (single-use) |
 | POST   | `/api/auth/logout`             | Revoke the refresh token and blacklist the current access token |
@@ -183,6 +205,19 @@ Once `security-api` is up, open the API docs:
 | PATCH  | `/api/users/{id}`  | ADMIN or self | Update a user |
 | DELETE | `/api/users/{id}`  | ADMIN or self | Soft-delete a user |
 | PATCH  | `/api/users/{id}/unlock` | ADMIN | Manually unlock a locked account |
+
+### Owner & invites — `/api/admin/invites` (`ROLE_ADMIN`)
+
+Sign-up is **invite-only** by default (`SIGNUP_MODE=invite-only`; set `open`
+to let anyone sign up). Existing accounts always sign in. The owner
+(`OWNER_EMAIL`) needs no invite and is made admin once their email is
+verified — the first admin always comes from here.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST   | `/api/admin/invites`      | Invite an email (re-sends if already pending); emails a link to `/register?email=…` |
+| GET    | `/api/admin/invites`      | List invites, pending and used |
+| DELETE | `/api/admin/invites/{id}` | Revoke a pending invite |
 
 ### RBAC — `/api/admin/permissions`, `/api/admin/roles`, `/api/admin/users/{userId}/roles`
 All endpoints below require the `ADMIN` role.
@@ -249,8 +284,8 @@ h-space-api/
 ├── .env.example            # Template for local env vars — copy to .env
 ├── ROADMAP.md / CHANGELOG.md / SECURITY.md / CONTRIBUTING.md / LICENSE
 │
-├── common-api/            # Shared library (no bootJar)
-│   └── src/main/java/com/henheang/commonapi/
+├── api-core/            # Shared library (no bootJar)
+│   └── src/main/java/com/henheang/apicore/
 │       └── components/     # ApiResponse, Pagination, enum converters, interceptor
 │
 ├── security-api/          # Auth service (port 8080)
@@ -297,9 +332,9 @@ h-space-api/
 ## Development Workflow
 
 1. **Start dependencies** — make sure PostgreSQL is running and `jwt_auth` exists.
-2. **Make changes** — shared code goes in `common-api`; auth logic in `security-api`;
+2. **Make changes** — shared code goes in `api-core`; auth logic in `security-api`;
    business features in `open-api`. Keep the dependency direction
-   (`open-api → security-api → common-api`) intact to avoid build cycles.
+   (`open-api → security-api → api-core`) intact to avoid build cycles.
 3. **Run tests** — `./gradlew test` (or per module, e.g. `./gradlew :security-api:test`).
    Tests use JUnit 5 (`useJUnitPlatform()`).
 4. **Run locally** — `./gradlew :security-api:bootRun`, then exercise endpoints via
@@ -309,9 +344,9 @@ h-space-api/
 ### Conventions
 - **Lombok** is enabled across all modules — use it for boilerplate (getters,
   builders, constructors).
-- **MapStruct** is used for DTO ↔ entity mapping in `common-api` and `security-api`.
+- **MapStruct** is used for DTO ↔ entity mapping in `api-core` and `security-api`.
 - API responses are wrapped using the envelope types in
-  `common-api` (`ApiResponse` / `ApiStatus` / `StatusCode`) for a consistent shape.
+  `api-core` (`ApiResponse` / `ApiStatus` / `StatusCode`) for a consistent shape.
 - Exceptions are translated centrally by `GlobalExceptionHandler` in `security-api`.
 
 ---
@@ -325,7 +360,7 @@ shape across modules):
 
 | Key | Source | Notes |
 |-----|--------|-------|
-| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`common-api`, not run directly), 8080 (`security-api`), 8082 (`open-api`) |
+| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`api-core`, not run directly), 8080 (`security-api`), 8082 (`open-api`) |
 | `spring.datasource.url` | `${DB_URL}` | Defaults to `jdbc:postgresql://localhost:5432/jwt_auth` (`jwt_auth_test` under the `test` profile) |
 | `spring.flyway.enabled` | `true` | Flyway is the sole schema authority — see `db/migration/` |
 | `spring.jpa.hibernate.ddl-auto` | `validate` (all profiles) | Hibernate only verifies the schema at startup; it never creates/alters it |

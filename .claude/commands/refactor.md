@@ -10,7 +10,7 @@ Constraints:
 - Behavior must stay identical — this is not the place to also fix bugs or
   add features. Flag anything you notice separately instead of bundling it.
 - Don't cross module dependency direction while moving code
-  (common-api → security-api → open-api, .claude/rules/architecture.md).
+  (api-core → security-api → open-api, .claude/rules/architecture.md).
 - Keep the resulting code in the standard package layout (config/
   controller/ domain/ repository/ security/ service/(+impl/) payload/
   exception/) — don't invent new top-level packages.

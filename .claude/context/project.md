@@ -2,7 +2,7 @@
 
 H-Space API is a multi-module Spring Boot monorepo providing a reusable
 authentication service (`security-api`) plus a sample business API
-(`open-api`) that demonstrates consuming it. `common-api` is the shared base
+(`open-api`) that demonstrates consuming it. `api-core` is the shared base
 library both depend on.
 
 Core capabilities in `security-api`: JWT auth (issue/refresh/revocation),

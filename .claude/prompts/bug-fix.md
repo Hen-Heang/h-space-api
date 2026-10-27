@@ -5,7 +5,7 @@ Use for fixing broken/incorrect behavior.
 ```
 Fix: {{one-line description of the bug}}
 
-Module: {{common-api|security-api|open-api}}
+Module: {{api-core|security-api|open-api}}
 
 Repro:
 - {{steps to reproduce, or failing test name}}

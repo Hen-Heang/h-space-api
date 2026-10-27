@@ -1,9 +1,10 @@
 package com.henheang.securityapi.exception;
 
-import com.henheang.commonapi.components.common.api.ApiResponse;
-import com.henheang.commonapi.components.common.api.ApiStatus;
-import com.henheang.commonapi.components.common.api.ExitCode;
-import java.util.HashMap;
+import com.henheang.apicore.components.common.api.ApiResponse;
+import com.henheang.apicore.components.common.api.ApiStatus;
+import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -23,11 +24,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(
             ResourceNotFoundException ex, WebRequest request) {
+        // Like every handler here: status carries a real code and a message a
+        // client can show as-is; data repeats the message for older clients.
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
-                        new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                        new ApiStatus(StatusCode.NOT_FOUND.getCode(), ex.getMessage()),
                         ex.getMessage());
 
         return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
@@ -38,9 +39,7 @@ public class GlobalExceptionHandler {
             BadRequestException ex, WebRequest request) {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
-                        new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                        new ApiStatus(StatusCode.BAD_REQUEST.getCode(), ex.getMessage()),
                         ex.getMessage());
         return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
     }
@@ -51,8 +50,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                                ExitCode.AUTHENTICATION_FAILED.getCode(),
+                                ExitCode.AUTHENTICATION_FAILED.getMessage()),
                         ex.getMessage());
 
         return new ResponseEntity<>(apiResponse, HttpStatus.UNAUTHORIZED);
@@ -64,8 +63,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                                ExitCode.INVALID_CREDENTIALS.getCode(),
+                                ExitCode.INVALID_CREDENTIALS.getMessage()),
                         ex.getMessage());
 
         return new ResponseEntity<>(apiResponse, HttpStatus.UNAUTHORIZED);
@@ -77,8 +76,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                                ExitCode.INSUFFICIENT_PERMISSIONS.getCode(),
+                                ExitCode.INSUFFICIENT_PERMISSIONS.getMessage()),
                         ex.getMessage());
 
         return new ResponseEntity<>(apiResponse, HttpStatus.FORBIDDEN);
@@ -100,22 +99,27 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Object>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
+        // Field errors keyed by field; class-level constraints (e.g.
+        // @ValidIdentifier) are ObjectErrors and keyed by the object's name.
+        Map<String, String> errors = new LinkedHashMap<>();
         ex.getBindingResult()
                 .getAllErrors()
                 .forEach(
-                        error -> {
-                            String fieldName = ((FieldError) error).getField();
-                            String errorMessage = error.getDefaultMessage();
-                            errors.put(fieldName, errorMessage);
-                        });
+                        error ->
+                                errors.putIfAbsent(
+                                        error instanceof FieldError fieldError
+                                                ? fieldError.getField()
+                                                : error.getObjectName(),
+                                        error.getDefaultMessage()));
 
+        // status.message carries the readable reason(s) so a client can show
+        // it as-is; data keeps the per-field map for forms.
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
-                        ex.getMessage());
+                                StatusCode.BAD_REQUEST.getCode(),
+                                String.join(" ", errors.values())),
+                        errors);
 
         return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
     }
@@ -148,11 +152,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ApiResponse<Object>> handleAuthException(
             AuthException ex, WebRequest request) {
+        // The real ExitCode and message, so clients can tell "wrong password"
+        // from "account locked" without parsing `data`. `data` keeps the
+        // message too, for clients that read it from there.
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
-                        new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                        new ApiStatus(ex.getExitCode().getCode(), ex.getMessage()),
                         ex.getMessage());
 
         return new ResponseEntity<>(apiResponse, getHttpStatusForExitCode(ex.getExitCode()));

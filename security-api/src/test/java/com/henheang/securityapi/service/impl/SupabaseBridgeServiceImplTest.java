@@ -9,7 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.BusinessException;
 import com.henheang.securityapi.payload.SupabaseTokenResponse;

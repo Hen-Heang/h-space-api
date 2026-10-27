@@ -25,6 +25,12 @@ jwt:
 mfa:
   encryption-key: ${MFA_ENCRYPTION_KEY:A5WWtiNdlns02Wd/qEkyzrioceZqK2kZ4/CwJCsAC00=}
 
+# Most integration tests sign up fresh random emails; InviteOnlySignupIntegrationTest
+# switches this back to invite-only to cover that mode.
+app:
+  signup:
+    mode: open
+
 logging:
   level:
     com.henheang: WARN

@@ -24,7 +24,10 @@ files first (`Glob security-api/src/main/java/**/*.java`).
   (`security/oauth/GoogleTokenVerifier` — verification only, not a
   cookie-based redirect flow), audit events (`AuditEvent`/`AuditLogService`),
   token revocation (`RevokedToken`/`TokenBlacklistService`),
-  `RateLimitingFilter`.
+  `RateLimitingFilter`, username-or-email password login (`UsernameRules`),
+  and "continue with email" 6-digit sign-in codes
+  (`EmailLoginCodeService`, `/api/auth/email-code/*`) — a deliberate
+  2026-10 addition, not the removed OTP below.
 - **Out — do not resurrect without asking**: custom OTP
   controller/service/domain/payloads, and the old cookie-based OAuth2 flow
   (`HttpCookieOAuth2AuthorizationRequestRepository`, `OAuth2*Handler`,

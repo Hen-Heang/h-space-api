@@ -1,0 +1,30 @@
+// Library module: shared by security-api/open-api and publishable for other
+// APIs (`./gradlew :api-core:publishToMavenLocal`), never run standalone.
+apply plugin: 'maven-publish'
+
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+    // Spring Boot's plugin tags the plain jar "-plain"; publish it as the
+    // main artifact so consumers can depend on com.henheang:api-core.
+    archiveClassifier = ''
+    // application*.yml only exists so this module's own context test can
+    // boot; consumers bring their own config, so keep it out of the jar.
+    exclude 'application*.yml'
+}
+
+java {
+    withSourcesJar()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'api-core'
+            from components.java
+        }
+    }
+}

@@ -7,13 +7,14 @@ default local creds `postgres`/`123`.
 
 - Migrations live in `security-api/src/main/resources/db/migration/`:
   `V1__baseline.sql`, `V2__account_security_tokens.sql`,
-  `V3__mfa_recovery_codes.sql`. They run automatically on startup.
+  `V3__mfa_recovery_codes.sql`, `V4__username_and_email_login_codes.sql`,
+  `V5__signup_invites.sql`. They run automatically on startup.
 - `spring.jpa.hibernate.ddl-auto` is `validate` in every `security-api`
   profile, `test` included — Hibernate checks the entity mapping matches the
   schema but never creates/alters anything. A mismatch fails fast at startup,
   it doesn't silently patch itself, and `security-api`'s tests run against
   the real Flyway-applied schema.
-- `open-api`/`common-api` tests use `create-drop`. `open-api` scans
+- `open-api`/`api-core` tests use `create-drop`. `open-api` scans
   `security-api`'s entities and has its migrations on the classpath, so its
   tests are isolated in the `open_api_test` schema of `jwt_auth_test` —
   without that, its create-drop dropped `security-api`'s tables in `public`

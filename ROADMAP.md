@@ -6,7 +6,7 @@ current state of each module before assuming anything below is already done.
 ## Done (foundation)
 
 - [x] Multi-module Gradle build with a clean one-way dependency direction
-      (`common-api` → `security-api` → `open-api`), deduplicated per-module
+      (`api-core` → `security-api` → `open-api`), deduplicated per-module
       `build.gradle` files.
 - [x] `local` / `dev` / `test` / `prod` Spring profiles per runnable module.
 - [x] Secrets externalized to environment variables; no committed real
@@ -25,7 +25,7 @@ current state of each module before assuming anything below is already done.
   enforced), flip `ignoreFailures` off.
 - **JaCoCo coverage gate** — reports are generated but there's no minimum
   coverage threshold enforced yet.
-- **`common-api`'s `application.yml`** — this library module carries a full
+- **`api-core`'s `application.yml`** — this library module carries a full
   Spring Boot app config (datasource, mail, JWT) purely so its
   `@SpringBootTest` context test can boot; worth revisiting whether that test
   needs the full context at all.

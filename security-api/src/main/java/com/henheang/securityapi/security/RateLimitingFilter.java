@@ -1,8 +1,8 @@
 package com.henheang.securityapi.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.henheang.commonapi.components.common.api.ApiResponse;
-import com.henheang.commonapi.components.common.api.StatusCode;
+import com.henheang.apicore.components.common.api.ApiResponse;
+import com.henheang.apicore.components.common.api.StatusCode;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
@@ -33,6 +33,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                     "/api/auth/login",
                     "/api/auth/signup",
                     "/api/auth/forgot-password",
+                    "/api/auth/email-code/request",
+                    "/api/auth/email-code/verify",
                     "/api/auth/mfa/setup",
                     "/api/auth/mfa/enable",
                     "/api/auth/mfa/disable",

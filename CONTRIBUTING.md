@@ -9,7 +9,7 @@ running anything.
 
 ## Workflow
 
-1. Keep the module dependency direction intact: `common-api` ← `security-api`
+1. Keep the module dependency direction intact: `api-core` ← `security-api`
    ← `open-api`. Never introduce a cycle (see `docs/architecture.md`).
 2. Follow `docs/coding-standards.md` — Lombok for boilerplate, MapStruct for
    DTO↔entity mapping, `ApiResponse`/`ApiStatus`/`StatusCode` envelopes for all

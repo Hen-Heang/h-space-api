@@ -1,8 +1,9 @@
 package com.henheang.securityapi.controller;
 
-import com.henheang.commonapi.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.RefreshToken;
+import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.AuthException;
 import com.henheang.securityapi.payload.*;
@@ -60,6 +61,27 @@ public class AuthController extends BaseController {
     @PostMapping("/oauth2/google")
     public Object loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
         return ok(authService.loginWithGoogle(request.getIdToken()));
+    }
+
+    // Lets a sign-up form check a username as it's typed. Answers false for a
+    // malformed username too, so the form needs only one rule to show.
+    @GetMapping("/username-available")
+    public Object usernameAvailable(@RequestParam("username") String username) {
+        return ok(java.util.Map.of("available", authService.isUsernameAvailable(username)));
+    }
+
+    // "Continue with email", step 1. Always answers OK - whether the address
+    // has an account, or a code was already sent moments ago, isn't revealed.
+    @PostMapping("/email-code/request")
+    public Object requestEmailCode(@Valid @RequestBody EmailCodeRequest request) {
+        authService.sendEmailLoginCode(request.getEmail());
+        return ok();
+    }
+
+    // Step 2: tokens (or an MFA challenge), same shape as /login.
+    @PostMapping("/email-code/verify")
+    public Object verifyEmailCode(@Valid @RequestBody EmailCodeVerifyRequest request) {
+        return ok(authService.loginWithEmailCode(request.getEmail(), request.getCode()));
     }
 
     @PostMapping("/refresh")
@@ -124,11 +146,13 @@ public class AuthController extends BaseController {
                 new UserResponse(
                         user.getId(),
                         user.getName(),
+                        user.getUsername(),
                         user.getEmail(),
                         user.getPhoneNumber(),
                         user.getEmailVerified(),
                         user.getImageUrl(),
                         user.getProvider() != null ? user.getProvider().toString() : "LOCAL");
+        userResponse.setRoles(user.getRoles().stream().map(Role::getName).sorted().toList());
         return ok(userResponse);
     }
 
