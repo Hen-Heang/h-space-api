@@ -5,9 +5,19 @@ spring:
     hikari:
       connection-timeout: 20000
       maximum-pool-size: 5
+      # open-api shares security-api's test database and scans its entities,
+      # and create-drop below drops every mapped table when the context
+      # closes. Run in a schema of its own so that never removes the tables
+      # security-api's tests (Flyway + validate) rely on in `public`.
+      schema: open_api_test
     url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth_test}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:123}
+
+  # security-api's migrations are on this module's classpath; Flyway creates
+  # the schema and records its history there too, not in `public`.
+  flyway:
+    default-schema: open_api_test
 
   jpa:
     hibernate:

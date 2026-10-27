@@ -1,0 +1,28 @@
+# Keep the build context small and secret-free.
+
+# Secrets / machine-local config - never copy into an image
+.env
+.env.*
+**/application-local.yml
+
+# VCS, IDE, tooling
+.git
+.github
+.idea
+.vscode
+.claude
+.codex
+*.iml
+
+# Build output and caches (the image builds its own)
+**/build
+.gradle
+**/out
+**/bin
+
+# Not part of the build
+legacy
+AI
+postman
+docs
+*.md

@@ -58,11 +58,18 @@ public enum StatusCode {
     POINT_PROCESSING_ERROR(50001, "Point processing error", 500),
     INSUFFICIENT_POINTS(50002, "Insufficient points", 500),
 
+    // 409 Conflict
+    CONFLICT(40900, "Conflict", 409),
+
     // 429 Too Many Requests
     TOO_MANY_REQUESTS(42900, "Too many requests, please try again later", 429),
 
+    // 502 Bad Gateway
+    BAD_GATEWAY(50200, "Upstream service error", 502),
+
     // 503 Service Unavailable
-    SEND_OTP_FAILED(50300, "Send OTP failed", 503);
+    SEND_OTP_FAILED(50300, "Send OTP failed", 503),
+    SERVICE_UNAVAILABLE(50301, "Service unavailable", 503);
 
     private final String message;
     private final int code;

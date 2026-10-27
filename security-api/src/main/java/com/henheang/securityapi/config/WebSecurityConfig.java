@@ -84,7 +84,8 @@ public class WebSecurityConfig {
                                         // order matters,
                                         // the first matching rule wins - these actually need a
                                         // valid principal.
-                                        .requestMatchers("/api/auth/user")
+                                        .requestMatchers(
+                                                "/api/auth/user", "/api/auth/supabase-token")
                                         .authenticated()
                                         .requestMatchers(
                                                 "/api/auth/mfa/setup",
@@ -95,6 +96,9 @@ public class WebSecurityConfig {
                                         .requestMatchers("/api/auth/**", "/api/v1/auth/**")
                                         .permitAll()
                                         .requestMatchers("/api/public/**")
+                                        .permitAll()
+                                        // Container healthcheck (liveness/readiness included)
+                                        .requestMatchers("/actuator/health", "/actuator/health/**")
                                         .permitAll()
                                         .requestMatchers("/api/users/**")
                                         .authenticated()

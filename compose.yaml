@@ -1,0 +1,49 @@
+# Local stack: PostgreSQL + security-api.
+#   docker compose up --build
+# Secrets (JWT_SECRET, MFA_ENCRYPTION_KEY, MAIL_*, GOOGLE_CLIENT_IDS,
+# SUPABASE_*, ...) come from the git-ignored .env - see .env.example.
+# Database settings are fixed below and override whatever .env says, since
+# inside the stack the database is "postgres", not localhost.
+name: h-space-api
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: jwt_auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123}
+    ports:
+      # 5433 so it doesn't clash with a Postgres already installed on 5432.
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jwt_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  security-api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # application-local.yml isn't in the image, so "local" can't work here.
+      SPRING_PROFILES_ACTIVE: ${COMPOSE_SPRING_PROFILE:-dev}
+      DB_URL: jdbc:postgresql://postgres:5432/jwt_auth
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-123}
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    depends_on:
+      # Flyway migrates on startup and fails if the DB isn't accepting
+      # connections yet.
+      postgres:
+        condition: service_healthy
+    mem_limit: 768m
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

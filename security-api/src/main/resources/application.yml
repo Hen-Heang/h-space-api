@@ -53,6 +53,25 @@ google:
   # allowed as the ID token audience. Empty means Google sign-in is disabled.
   client-ids: ${GOOGLE_CLIENT_IDS:}
 
+# Temporary bridge while H-Space's data moves off Supabase
+# (SupabaseBridgeService). All three must be set or /api/auth/supabase-token
+# answers 503. jwt-secret is the project's *legacy* JWT secret (Dashboard >
+# Project Settings > JWT Keys); service-role-key is server-only — never expose
+# either to the frontend.
+supabase:
+  url: ${SUPABASE_URL:}
+  jwt-secret: ${SUPABASE_JWT_SECRET:}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  bridge-token-ttl: ${SUPABASE_BRIDGE_TOKEN_TTL:PT1H}
+  # One-off account import (SupabaseUserImportRunner) - off unless started with
+  # --supabase.import.enabled=true. See docs/supabase-user-import.md.
+  import:
+    enabled: false
+    dry-run: true
+    db-url: ${SUPABASE_DB_URL:}
+    db-username: ${SUPABASE_DB_USERNAME:}
+    db-password: ${SUPABASE_DB_PASSWORD:}
+
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
   reset-password:
@@ -82,3 +101,21 @@ cache:
 
 server:
   port: ${SERVER_PORT:8080}
+
+# Only /actuator/health is exposed (permitAll in WebSecurityConfig) - used by
+# the Docker/Compose healthcheck. Details stay hidden from anonymous callers.
+# Mail is excluded so an unreachable/placeholder SMTP server doesn't mark the
+# whole app DOWN; the DB check stays in.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: false
