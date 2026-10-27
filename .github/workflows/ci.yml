@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # Release tags (docs/workflows/release-workflow.md) publish a versioned image.
+    tags: ["v*.*.*"]
   pull_request:
     branches: [main]
 
@@ -61,3 +63,115 @@ jobs:
             */build/reports/pmd/
             */build/reports/jacoco/
           retention-days: 7
+
+  # Builds the security-api image and boots it against a throwaway Postgres.
+  # On PRs that's a check only; on main / release tags the image is pushed to
+  # GHCR first and the smoke check runs against the published digest, so the
+  # recorded image@digest is one that's known to start.
+  image:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      PUBLISH: ${{ github.event_name == 'push' }}
+
+    outputs:
+      image_ref: ${{ steps.reference.outputs.image_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+
+      # GHCR paths must be lowercase; the owner here is "Hen-Heang".
+      - name: Image name
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: printf 'name=ghcr.io/%s/security-api\n' "${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
+      - name: Log in to GHCR
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # main -> latest + sha-<full commit>; vX.Y.Z -> vX.Y.Z + vX.Y + sha-<commit>.
+      # "latest" only ever moves on main, never on a release tag.
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v6.2.0
+        with:
+          images: ${{ steps.image.outputs.name }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=long
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+
+      - name: Build (and push on main / release tags)
+        id: push
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: ${{ env.PUBLISH == 'true' }}
+          load: ${{ env.PUBLISH != 'true' }}
+          tags: ${{ env.PUBLISH == 'true' && steps.meta.outputs.tags || 'security-api:ci' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=security-api
+          cache-to: type=gha,mode=max,scope=security-api
+
+      # Uses the dev profile's built-in non-secret JWT/MFA fallbacks; nothing
+      # from this throwaway stack outlives the job.
+      - name: Smoke check (boot against Postgres, expect health UP)
+        env:
+          IMAGE: ${{ env.PUBLISH == 'true' && format('{0}@{1}', steps.image.outputs.name, steps.push.outputs.digest) || 'security-api:ci' }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUBLISH" == "true" ]]; then docker pull "$IMAGE"; fi
+          trap 'docker logs smoke-api || true; docker rm -f smoke-api smoke-db >/dev/null 2>&1 || true' EXIT
+          docker network create smoke
+          docker run -d --name smoke-db --network smoke \
+            -e POSTGRES_DB=jwt_auth -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=smoke \
+            postgres:16
+          until docker exec smoke-db pg_isready -U postgres -d jwt_auth -q; do sleep 1; done
+          docker run -d --name smoke-api --network smoke -p 127.0.0.1:8080:8080 \
+            -e SPRING_PROFILES_ACTIVE=dev \
+            -e DB_URL=jdbc:postgresql://smoke-db:5432/jwt_auth \
+            -e DB_USERNAME=postgres -e DB_PASSWORD=smoke \
+            "$IMAGE"
+          curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 \
+            http://127.0.0.1:8080/actuator/health | tee /dev/stderr | grep -q '"status":"UP"'
+
+      - name: Record verified image reference
+        id: reference
+        if: env.PUBLISH == 'true'
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          printf 'image_ref=%s@%s\n' "$IMAGE_NAME" "$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
+          # Backticks below are Markdown for the summary, not shell.
+          # shellcheck disable=SC2016
+          printf 'Verified image: `%s@%s`\n\nTags:\n```\n%s\n```\n' \
+            "$IMAGE_NAME" "$IMAGE_DIGEST" "$TAGS" >> "$GITHUB_STEP_SUMMARY"

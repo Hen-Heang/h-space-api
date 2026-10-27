@@ -23,6 +23,9 @@ project has no released versions yet, so everything lives under
 - Public `/actuator/health` (plus `/liveness` and `/readiness`) in
   `security-api` for container healthchecks; it checks the database, hides
   details, and no other actuator endpoint is exposed.
+- CI `image` job: builds the `security-api` image and smoke-tests it against
+  Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
+  (`latest`, `sha-<commit>`, version tags) and records the verified digest.
 
 ### Changed
 - Deduplicated per-module `build.gradle` files — group/version/plugins/
