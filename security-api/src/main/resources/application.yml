@@ -114,6 +114,14 @@ cache:
 
 server:
   port: ${SERVER_PORT:8080}
+  # Behind a reverse proxy (Nginx Proxy Manager on the VPS), Tomcat's
+  # RemoteIpValve resolves the real client from X-Forwarded-For, walking it
+  # right to left and only past trusted proxies - so request.getRemoteAddr()
+  # can't be spoofed by a client sending its own X-Forwarded-For. Trusted
+  # proxies are Boot's default private/loopback ranges (covers the Docker
+  # network); if the proxy sits elsewhere, set the regex via
+  # SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES.
+  forward-headers-strategy: native
 
 # Only /actuator/health is exposed (permitAll in WebSecurityConfig) - used by
 # the Docker/Compose healthcheck. Details stay hidden from anonymous callers.

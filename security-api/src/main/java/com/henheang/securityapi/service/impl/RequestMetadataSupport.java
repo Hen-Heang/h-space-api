@@ -1,7 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -16,10 +15,8 @@ final class RequestMetadataSupport {
         if (request == null) {
             return null;
         }
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
+        // Resolved from X-Forwarded-For by Tomcat only when sent by a trusted
+        // proxy (server.forward-headers-strategy), so it can't be spoofed.
         return request.getRemoteAddr();
     }
 

@@ -57,6 +57,11 @@ project has no released versions yet, so everything lives under
   distinct name.
 
 ### Security
+- The client IP used for login rate limiting and audit/login-history rows
+  no longer trusts the first `X-Forwarded-For` entry, which any client could
+  set to bypass the rate limit or fake its logged IP. Tomcat now resolves it
+  from `X-Forwarded-For` only past trusted (private/loopback) proxies
+  (`server.forward-headers-strategy: native`).
 - Removed hard-coded JWT secrets and database passwords from
   `common-api`, `security-api`, and `todoapi`'s `application*.yml` files;
   all secrets now come from environment variables with no insecure
