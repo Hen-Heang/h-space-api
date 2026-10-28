@@ -4,7 +4,7 @@ import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import org.springframework.beans.factory.annotation.Value;
 
-// Instantiated via SpringConstraintValidatorFactory (auto-configured by
+// Instantiated via SpringConstraintValidatorFactory (autoconfigured by
 // spring-boot-starter-validation), so @Value works here same as in any bean -
 // lets the policy be tuned per-environment without a code change.
 public class StrongPasswordValidator implements ConstraintValidator<StrongPassword, String> {
