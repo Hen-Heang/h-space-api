@@ -28,6 +28,9 @@ project has no released versions yet, so everything lives under
 - CI `image` job: builds the `security-api` image and smoke-tests it against
   Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
   (`latest`, `sha-<commit>`, version tags) and records the verified digest.
+- Dependabot (`.github/dependabot.yml`): weekly update PRs for Gradle,
+  GitHub Actions, Dockerfile base images and `compose.yaml`; minor/patch
+  bumps are grouped, and Java (Temurin) and Postgres major bumps are skipped.
 
 ### Changed
 - Renamed the shared library module `common-api` to `api-core` and its

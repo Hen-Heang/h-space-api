@@ -1,0 +1,57 @@
+# Weekly dependency update PRs. Minor/patch bumps are grouped into one PR per
+# ecosystem; major bumps arrive as separate PRs so each can be reviewed (and
+# its migration done) on its own. CI's `./gradlew clean build` + image smoke
+# check is the gate for merging any of them.
+version: 2
+
+updates:
+  # Root build.gradle + module build files (legacy/ isn't in settings.gradle,
+  # so it isn't scanned). Spring-managed versions follow the Boot plugin.
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      gradle-minor-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # Dockerfile base images. The project targets Java 17, so a JDK/JRE major
+  # bump (17 -> 21) is a deliberate change, not a routine update.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "docker"
+
+  # compose.yaml. A Postgres major upgrade needs a dump/restore of the data
+  # volume, so only minor/patch tags are proposed.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "docker"
