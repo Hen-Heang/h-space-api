@@ -14,7 +14,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,6 +93,35 @@ public class SupabaseBridgeServiceImpl implements SupabaseBridgeService {
         this.serviceRoleKey = serviceRoleKey;
         this.tokenTtl = capped(tokenTtl);
         this.clock = clock;
+        logBridgeState(missingSettings(supabaseUrl, jwtSecret, serviceRoleKey));
+    }
+
+    // Names only - never the values. A bridge that's off fails every
+    // /api/auth/supabase-token call with 503, so say at startup which setting
+    // didn't arrive rather than leave it to be guessed.
+    private static void logBridgeState(List<String> missing) {
+        if (missing.isEmpty()) {
+            logger.info("Supabase bridge on");
+        } else if (missing.size() == 3) {
+            logger.info("Supabase bridge off: none of {} is set", missing);
+        } else {
+            logger.warn("Supabase bridge off: missing {}", missing);
+        }
+    }
+
+    static List<String> missingSettings(
+            String supabaseUrl, String jwtSecret, String serviceRoleKey) {
+        List<String> missing = new ArrayList<>();
+        if (!StringUtils.hasText(supabaseUrl)) {
+            missing.add("supabase.url (SUPABASE_URL)");
+        }
+        if (!StringUtils.hasText(jwtSecret)) {
+            missing.add("supabase.jwt-secret (SUPABASE_JWT_SECRET)");
+        }
+        if (!StringUtils.hasText(serviceRoleKey)) {
+            missing.add("supabase.service-role-key (SUPABASE_SERVICE_ROLE_KEY)");
+        }
+        return missing;
     }
 
     private static Duration capped(Duration tokenTtl) {
@@ -106,9 +137,7 @@ public class SupabaseBridgeServiceImpl implements SupabaseBridgeService {
 
     @Override
     public boolean isEnabled() {
-        return StringUtils.hasText(supabaseUrl)
-                && StringUtils.hasText(jwtSecret)
-                && StringUtils.hasText(serviceRoleKey);
+        return missingSettings(supabaseUrl, jwtSecret, serviceRoleKey).isEmpty();
     }
 
     @Override
