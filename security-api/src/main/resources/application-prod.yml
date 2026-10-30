@@ -28,6 +28,15 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
 
+# No public API docs in production: Swagger UI and the OpenAPI spec map out
+# every endpoint for anyone who finds them. Set API_DOCS_ENABLED=true to
+# turn both on temporarily.
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
+
 logging:
   level:
     root: WARN

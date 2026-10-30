@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -30,6 +31,18 @@ public class GlobalExceptionHandler {
                 new ApiResponse<>(
                         new ApiStatus(StatusCode.NOT_FOUND.getCode(), ex.getMessage()),
                         ex.getMessage());
+
+        return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
+    }
+
+    // A URL nothing handles (a typo, a scanner probing /wp-admin, the API docs
+    // in prod). Without this the catch-all below would answer 500.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFoundException(
+            NoResourceFoundException ex, WebRequest request) {
+        ApiResponse<Object> apiResponse =
+                new ApiResponse<>(
+                        new ApiStatus(StatusCode.NOT_FOUND), StatusCode.NOT_FOUND.getMessage());
 
         return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
     }

@@ -52,6 +52,10 @@ project has no released versions yet, so everything lives under
   as Spring bean names (`openApiConfig`) once `todoapi` component-scans
   `security-api`'s package — gave `todoapi`'s config bean an explicit,
   distinct name.
+- `security-api` answered `500` for any URL with no handler (e.g. a typo or
+  a scanner probing `/wp-admin`) because the catch-all exception handler
+  swallowed Spring's `NoResourceFoundException`; it now answers `404` in
+  the usual `ApiResponse` envelope.
 
 ### Security
 - Removed hard-coded JWT secrets and database passwords from
@@ -68,3 +72,6 @@ project has no released versions yet, so everything lives under
   endpoints and forged the logged IP. The client IP now comes from Tomcat's
   `RemoteIpValve` (`server.forward-headers-strategy: native`), which only
   honours the header from a trusted (private/loopback) proxy.
+- Swagger UI and the OpenAPI spec are off in the `prod` profile
+  (`API_DOCS_ENABLED=true` turns them on temporarily); other profiles are
+  unchanged.
