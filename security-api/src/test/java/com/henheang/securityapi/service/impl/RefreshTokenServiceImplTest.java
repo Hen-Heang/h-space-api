@@ -117,11 +117,58 @@ class RefreshTokenServiceImplTest {
     }
 
     @Test
-    void logout_throwsWhenTokenNotFound() {
+    void logout_isANoOpWhenTokenNotFound() {
         when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.empty());
 
-        org.junit.jupiter.api.Assertions.assertThrows(
-                RuntimeException.class, () -> refreshTokenService.logout("missing-token"));
+        refreshTokenService.logout("missing-token");
+
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    private RefreshToken activeTokenFor(User user) {
+        RefreshToken token = new RefreshToken();
+        token.setId(UUID.randomUUID());
+        token.setUser(user);
+        token.setRevoked(false);
+        token.setExpiryDate(Instant.now().plusSeconds(3600));
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(token));
+        when(refreshTokenRepository.findAllByUserAndRevokedFalse(user)).thenReturn(List.of());
+        return token;
+    }
+
+    @Test
+    void rotateRefreshToken_spendsTheTokenAndIssuesANewOne() {
+        User user = user();
+        user.setEmailVerified(true);
+        RefreshToken current = activeTokenFor(user);
+        when(refreshTokenRepository.revokeIfActive(current.getId())).thenReturn(1);
+
+        Optional<RefreshToken> rotated = refreshTokenService.rotateRefreshToken("raw-token");
+
+        assertThat(rotated).isPresent();
+        assertThat(rotated.get().getRawToken()).isNotBlank();
+        assertThat(rotated.get().getUser()).isEqualTo(user);
+    }
+
+    @Test
+    void rotateRefreshToken_whenAnotherRequestSpentItFirst_issuesNothing() {
+        User user = user();
+        user.setEmailVerified(true);
+        RefreshToken current = activeTokenFor(user);
+        when(refreshTokenRepository.revokeIfActive(current.getId())).thenReturn(0);
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void rotateRefreshToken_forAnUnverifiedEmail_spendsNothing() {
+        User user = user();
+        user.setEmailVerified(false);
+        activeTokenFor(user);
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
+        verify(refreshTokenRepository, never()).revokeIfActive(any());
     }
 
     @Test

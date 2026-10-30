@@ -16,9 +16,11 @@ import lombok.Setter;
 // No soft delete here - "revoked" already is this entity's own logical-delete
 // flag; adding a second, generic deletedAt would create two ways to express
 // "this token is dead" and an easy bug (filtering one but not the other). It
-// does inherit @Version from BaseEntity: concurrent refresh-token rotation
-// (two requests refreshing the same token at once) is a real race, and
-// optimistic locking makes the loser fail fast instead of double-issuing.
+// does inherit @Version from BaseEntity. Concurrent rotation (two requests
+// refreshing the same token at once) is settled by the conditional update in
+// RefreshTokenRepository.revokeIfActive, not by optimistic locking: a request
+// that checked the token before the other committed would otherwise still
+// find nothing to conflict with and issue a second token.
 @Setter
 @Getter
 @NoArgsConstructor

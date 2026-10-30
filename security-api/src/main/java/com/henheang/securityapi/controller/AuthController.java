@@ -2,7 +2,6 @@ package com.henheang.securityapi.controller;
 
 import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.securityapi.domain.AuditEventType;
-import com.henheang.securityapi.domain.RefreshToken;
 import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.AuthException;
@@ -86,23 +85,15 @@ public class AuthController extends BaseController {
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        // Rotation spends the presented token and issues a new one, so a
+        // leaked refresh token can only be used once - even by two requests
+        // racing with it.
         return refreshTokenService
-                .validateRefreshToken(request.getRefreshToken())
-                // Same rule as JwtAuthenticationFilter: no session for an
-                // unverified email.
-                .filter(
-                        refreshToken ->
-                                Boolean.TRUE.equals(refreshToken.getUser().getEmailVerified()))
+                .rotateRefreshToken(request.getRefreshToken())
                 .map(
-                        refreshToken -> {
-                            User user = refreshToken.getUser();
+                        rotatedToken -> {
+                            User user = rotatedToken.getUser();
                             String accessToken = jwtTokenProvider.generateToken(user);
-
-                            // Rotate the refresh token: createRefreshToken revokes all of the
-                            // user's existing tokens (including the one just presented) and issues
-                            // a new one, so a leaked refresh token can only be used once.
-                            RefreshToken rotatedToken =
-                                    refreshTokenService.createRefreshToken(user);
 
                             // expiresIn reflects the access token lifetime
                             Duration duration = Duration.parse(jwtExpirationString);

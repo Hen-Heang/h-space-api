@@ -67,6 +67,19 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .filter(refreshToken -> refreshToken.getExpiryDate().isAfter(Instant.now()));
     }
 
+    @Override
+    @Transactional
+    public Optional<RefreshToken> rotateRefreshToken(String token) {
+        return validateRefreshToken(token)
+                // Same rule as JwtAuthenticationFilter: no session for an
+                // unverified email.
+                .filter(current -> Boolean.TRUE.equals(current.getUser().getEmailVerified()))
+                // Of two requests racing with the same token, only one revokes
+                // it here; the other gets 0 and is refused.
+                .filter(current -> refreshTokenRepository.revokeIfActive(current.getId()) == 1)
+                .map(current -> createRefreshToken(current.getUser()));
+    }
+
     private String hash(String rawToken) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -101,13 +114,18 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         refreshTokenRepository.deleteAll(expiredTokens);
     }
 
+    // Idempotent: an unknown or already-revoked token is already as signed
+    // out as logout can make it.
     @Override
+    @Transactional
     public void logout(String refreshToken) {
-        RefreshToken token =
-                refreshTokenRepository
-                        .findByTokenHash(hash(refreshToken))
-                        .orElseThrow(() -> new RuntimeException("Refresh token not found"));
-        token.setRevoked(true);
-        refreshTokenRepository.save(token);
+        refreshTokenRepository
+                .findByTokenHash(hash(refreshToken))
+                .filter(token -> !token.isRevoked())
+                .ifPresent(
+                        token -> {
+                            token.setRevoked(true);
+                            refreshTokenRepository.save(token);
+                        });
     }
 }
