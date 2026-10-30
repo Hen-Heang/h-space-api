@@ -20,6 +20,9 @@ import com.henheang.securityapi.repository.EmailVerificationTokenRepository;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.validation.UsernameRules;
+import dev.samstevens.totp.code.DefaultCodeGenerator;
+import dev.samstevens.totp.secret.DefaultSecretGenerator;
+import dev.samstevens.totp.time.SystemTimeProvider;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -522,6 +525,92 @@ class AuthControllerIntegrationTest {
                                 .with(ip)
                                 .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void mfaChallengeToken_isNotAcceptedAsAnAccessToken() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String secret = new DefaultSecretGenerator().generate();
+        String mfaToken = loginWithMfaEnabled(secret, ip);
+
+        // Only the password has been proven here - the challenge token must
+        // not open anything that a real access token would.
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + mfaToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        post("/api/auth/supabase-token")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + mfaToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mfaChallengeToken_withAValidCode_issuesAWorkingAccessToken() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String secret = new DefaultSecretGenerator().generate();
+        String mfaToken = loginWithMfaEnabled(secret, ip);
+        long timeStep = Math.floorDiv(new SystemTimeProvider().getTime(), 30);
+        String code = new DefaultCodeGenerator().generate(secret, timeStep);
+
+        String verifyBody =
+                mockMvc.perform(
+                                jsonPost(
+                                        "/api/auth/mfa/verify",
+                                        Map.of("mfaToken", mfaToken, "code", code),
+                                        ip))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.refreshToken", notNullValue()))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + readJsonField(verifyBody, "accessToken")))
+                .andExpect(status().isOk());
+    }
+
+    // Signs up a verified user with MFA on and logs in with the password,
+    // returning the mfa_challenge token the login answers with.
+    private String loginWithMfaEnabled(String mfaSecret, RequestPostProcessor ip) throws Exception {
+        String email = uniqueEmail();
+        Map<String, String> signUpRequest =
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
+        mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
+        verifyEmailFor(email, ip);
+
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setMfaSecret(mfaSecret);
+        user.setMfaEnabled(true);
+        userRepository.save(user);
+
+        String loginBody =
+                mockMvc.perform(
+                                jsonPost(
+                                        "/api/auth/login",
+                                        Map.of("identifier", email, "password", "Password123!"),
+                                        ip))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.mfaRequired").value(true))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        return readJsonField(loginBody, "mfaToken");
     }
 
     @SuppressWarnings("unchecked")
