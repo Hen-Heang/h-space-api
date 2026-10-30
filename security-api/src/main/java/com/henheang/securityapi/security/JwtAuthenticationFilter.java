@@ -48,6 +48,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UUID userId = tokenProvider.getUserIdFromToken(jwt);
 
                 UserDetails userDetails = customUserDetailsService.loadUserById(userId);
+                // An unverified email can't sign in, so it can't hold a working
+                // token either - whatever issued one. A temporary lock is left
+                // alone: it throttles password guessing, and ending sessions on
+                // it would let a guesser sign the real owner out.
+                if (!userDetails.isEnabled()) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 userDetails, null, userDetails.getAuthorities());
