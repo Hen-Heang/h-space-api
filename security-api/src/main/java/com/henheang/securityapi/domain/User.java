@@ -90,6 +90,12 @@ public class User extends SoftDeletableEntity {
     @Convert(converter = MfaSecretConverter.class)
     private String mfaSecret;
 
+    // TOTP time step of the last code accepted at sign-in, so the same code
+    // can't be replayed while it's still valid. Claimed atomically through
+    // UserRepository.claimMfaTimeStep.
+    @Column(name = "mfa_last_used_step")
+    private Long mfaLastUsedStep;
+
     // Explicit join entity (not a bare @ManyToMany) so a role grant can carry
     // who/when it was granted - see UserRole.
     @OneToMany(

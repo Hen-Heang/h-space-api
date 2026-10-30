@@ -1,5 +1,6 @@
 package com.henheang.securityapi.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -10,13 +11,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.henheang.securityapi.domain.AuditEventType;
+import com.henheang.securityapi.domain.AuditLog;
 import com.henheang.securityapi.domain.EmailVerificationToken;
 import com.henheang.securityapi.domain.User;
+import com.henheang.securityapi.repository.AuditLogRepository;
 import com.henheang.securityapi.repository.EmailVerificationTokenRepository;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.validation.UsernameRules;
+import dev.samstevens.totp.code.DefaultCodeGenerator;
+import dev.samstevens.totp.secret.DefaultSecretGenerator;
+import dev.samstevens.totp.time.SystemTimeProvider;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,9 +34,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Propagation;
@@ -47,6 +58,7 @@ class AuthControllerIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository userRepository;
     @Autowired private EmailVerificationTokenRepository emailVerificationTokenRepository;
+    @Autowired private AuditLogRepository auditLogRepository;
 
     // Real EmailService would try a live SMTP connection - mocked so
     // signup/verification flows run without network access, while the
@@ -106,15 +118,42 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    @Test
-    void signup_createsUserAndReturnsTokens() throws Exception {
-        RequestPostProcessor ip = uniqueClientIp();
+    // Signs up with a password, verifies the email and signs in, returning the
+    // login response - sign-up alone issues no tokens.
+    private String signUpAndSignIn(String email, RequestPostProcessor ip) throws Exception {
         Map<String, String> signUpRequest =
                 Map.of(
                         "name",
                         "Jane Doe",
                         "email",
-                        uniqueEmail(),
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
+        mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
+        verifyEmailFor(email, ip);
+        return mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/login",
+                                Map.of("identifier", email, "password", "Password123!"),
+                                ip))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+    }
+
+    @Test
+    void signup_createsUserButIssuesNoTokensUntilTheEmailIsVerified() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        Map<String, String> signUpRequest =
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
                         "password",
                         "Password123!",
                         "username",
@@ -122,9 +161,58 @@ class AuthControllerIntegrationTest {
 
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.accessToken", notNullValue()))
-                .andExpect(jsonPath("$.data.refreshToken", notNullValue()))
-                .andExpect(jsonPath("$.data.tokenType").value("Bearer"));
+                .andExpect(jsonPath("$.data.emailVerificationRequired").value(true))
+                .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist());
+        assertThat(userRepository.findByEmail(email)).isPresent();
+    }
+
+    @Test
+    void tokens_stopWorkingOnceTheEmailIsNoLongerVerified() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        String loginBody = signUpAndSignIn(email, ip);
+        String accessToken = readJsonField(loginBody, "accessToken");
+
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(false);
+        userRepository.save(user);
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        post("/api/auth/supabase-token")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/refresh",
+                                Map.of("refreshToken", readJsonField(loginBody, "refreshToken")),
+                                ip))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // A lock only throttles password guessing: it must not let whoever is
+    // guessing sign the real owner out of a session they already have.
+    @Test
+    void accessToken_keepsWorkingWhileTheAccountIsTemporarilyLocked() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        String accessToken = readJsonField(signUpAndSignIn(email, ip), "accessToken");
+
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setLockedUntil(java.time.Instant.now().plusSeconds(900));
+        userRepository.save(user);
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -228,24 +316,8 @@ class AuthControllerIntegrationTest {
     @Test
     void refresh_rotatesRefreshTokenAndRejectsThePreviousOne() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
-        String email = uniqueEmail();
-        Map<String, String> signUpRequest =
-                Map.of(
-                        "name",
-                        "Jane Doe",
-                        "email",
-                        email,
-                        "password",
-                        "Password123!",
-                        "username",
-                        uniqueUsername());
-        String signUpBody =
-                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String originalRefreshToken = readJsonField(signUpBody, "refreshToken");
+        String originalRefreshToken =
+                readJsonField(signUpAndSignIn(uniqueEmail(), ip), "refreshToken");
 
         Map<String, String> refreshRequest = Map.of("refreshToken", originalRefreshToken);
         String refreshBody =
@@ -268,25 +340,9 @@ class AuthControllerIntegrationTest {
     @Test
     void logout_revokesRefreshTokenAndBlacklistsAccessToken() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
-        String email = uniqueEmail();
-        Map<String, String> signUpRequest =
-                Map.of(
-                        "name",
-                        "Jane Doe",
-                        "email",
-                        email,
-                        "password",
-                        "Password123!",
-                        "username",
-                        uniqueUsername());
-        String signUpBody =
-                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String accessToken = readJsonField(signUpBody, "accessToken");
-        String refreshToken = readJsonField(signUpBody, "refreshToken");
+        String loginBody = signUpAndSignIn(uniqueEmail(), ip);
+        String accessToken = readJsonField(loginBody, "accessToken");
+        String refreshToken = readJsonField(loginBody, "refreshToken");
 
         // Access token works before logout.
         mockMvc.perform(
@@ -446,6 +502,16 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.email").value(email))
                 .andExpect(jsonPath("$.data.emailVerified").value(true));
 
+        // The sign-up audit row references a user created in the same request,
+        // so it can only be written once that request's transaction commits.
+        User user = userRepository.findByEmail(email).orElseThrow();
+        assertThat(
+                        auditLogRepository
+                                .findAllByUserIdOrderByCreatedAtDesc(
+                                        user.getId(), Pageable.unpaged())
+                                .map(AuditLog::getEventType))
+                .contains(AuditEventType.SIGNUP, AuditEventType.LOGIN_SUCCESS);
+
         // One-time: the same code can't be used again.
         mockMvc.perform(
                         jsonPost(
@@ -482,23 +548,7 @@ class AuthControllerIntegrationTest {
     @Test
     void supabaseToken_whenBridgeNotConfigured_returns503() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
-        Map<String, String> signUpRequest =
-                Map.of(
-                        "name",
-                        "Jane Doe",
-                        "email",
-                        uniqueEmail(),
-                        "password",
-                        "Password123!",
-                        "username",
-                        uniqueUsername());
-        String signUpBody =
-                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String accessToken = readJsonField(signUpBody, "accessToken");
+        String accessToken = readJsonField(signUpAndSignIn(uniqueEmail(), ip), "accessToken");
 
         // The test profile sets no SUPABASE_* values, so the bridge stays off.
         mockMvc.perform(
@@ -506,6 +556,184 @@ class AuthControllerIntegrationTest {
                                 .with(ip)
                                 .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    void mfaChallengeToken_isNotAcceptedAsAnAccessToken() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String secret = new DefaultSecretGenerator().generate();
+        String mfaToken = loginWithMfaEnabled(secret, ip);
+
+        // Only the password has been proven here - the challenge token must
+        // not open anything that a real access token would.
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + mfaToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        post("/api/auth/supabase-token")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + mfaToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mfaChallengeToken_withAValidCode_issuesAWorkingAccessToken() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String secret = new DefaultSecretGenerator().generate();
+        String mfaToken = loginWithMfaEnabled(secret, ip);
+        long timeStep = Math.floorDiv(new SystemTimeProvider().getTime(), 30);
+        String code = new DefaultCodeGenerator().generate(secret, timeStep);
+
+        String verifyBody =
+                mockMvc.perform(
+                                jsonPost(
+                                        "/api/auth/mfa/verify",
+                                        Map.of("mfaToken", mfaToken, "code", code),
+                                        ip))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.refreshToken", notNullValue()))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + readJsonField(verifyBody, "accessToken")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mfaChallenge_canOnlyBeRedeemedOnce() throws Exception {
+        String secret = new DefaultSecretGenerator().generate();
+        String mfaToken = loginWithMfaEnabled(secret, uniqueClientIp());
+        long step = currentTimeStep();
+
+        verifyMfa(mfaToken, totp(secret, step)).andExpect(status().isOk());
+
+        // A different, still-valid code: only the challenge's reuse is refused.
+        verifyMfa(mfaToken, totp(secret, step + 1))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1005));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mfaCode_cannotBeReplayedOnAFreshChallenge() throws Exception {
+        String secret = new DefaultSecretGenerator().generate();
+        String email = signUpWithMfaEnabled(secret, uniqueClientIp());
+        String code = totp(secret, currentTimeStep());
+
+        verifyMfa(mfaChallengeFor(email, uniqueClientIp()), code).andExpect(status().isOk());
+
+        verifyMfa(mfaChallengeFor(email, uniqueClientIp()), code)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1008));
+    }
+
+    // Re-entering the password must not reset the count between code guesses.
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void wrongMfaCodes_lockTheAccount_evenWhenThePasswordIsReentered() throws Exception {
+        String secret = new DefaultSecretGenerator().generate();
+        String email = signUpWithMfaEnabled(secret, uniqueClientIp());
+        String wrong = wrongTotp(secret);
+
+        String firstChallenge = mfaChallengeFor(email, uniqueClientIp());
+        for (int i = 0; i < 3; i++) {
+            verifyMfa(firstChallenge, wrong).andExpect(status().isUnauthorized());
+        }
+        String secondChallenge = mfaChallengeFor(email, uniqueClientIp());
+        for (int i = 0; i < 2; i++) {
+            verifyMfa(secondChallenge, wrong).andExpect(status().isUnauthorized());
+        }
+
+        // Five wrong codes in all: even the right one is refused now.
+        verifyMfa(secondChallenge, totp(secret, currentTimeStep()))
+                .andExpect(jsonPath("$.status.code").value(1002));
+        assertThat(userRepository.findByEmail(email).orElseThrow().getLockedUntil()).isNotNull();
+    }
+
+    // Each call from its own client IP, clear of the per-IP rate limit.
+    private ResultActions verifyMfa(String mfaToken, String code) throws Exception {
+        return mockMvc.perform(
+                jsonPost(
+                        "/api/auth/mfa/verify",
+                        Map.of("mfaToken", mfaToken, "code", code),
+                        uniqueClientIp()));
+    }
+
+    private static long currentTimeStep() {
+        return Math.floorDiv(new SystemTimeProvider().getTime(), 30);
+    }
+
+    private static String totp(String secret, long timeStep) throws Exception {
+        return new DefaultCodeGenerator().generate(secret, timeStep);
+    }
+
+    // A six-digit code that's valid for none of the steps the server accepts.
+    private static String wrongTotp(String secret) throws Exception {
+        long step = currentTimeStep();
+        Set<String> valid = new HashSet<>();
+        for (long s = step - 2; s <= step + 2; s++) {
+            valid.add(totp(secret, s));
+        }
+        for (int candidate = 0; ; candidate++) {
+            String code = String.format("%06d", candidate);
+            if (!valid.contains(code)) {
+                return code;
+            }
+        }
+    }
+
+    // Signs up a verified user with MFA on and logs in with the password,
+    // returning the mfa_challenge token the login answers with.
+    private String loginWithMfaEnabled(String mfaSecret, RequestPostProcessor ip) throws Exception {
+        return mfaChallengeFor(signUpWithMfaEnabled(mfaSecret, ip), ip);
+    }
+
+    private String signUpWithMfaEnabled(String mfaSecret, RequestPostProcessor ip)
+            throws Exception {
+        String email = uniqueEmail();
+        Map<String, String> signUpRequest =
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
+        mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
+        verifyEmailFor(email, ip);
+
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setMfaSecret(mfaSecret);
+        user.setMfaEnabled(true);
+        userRepository.save(user);
+        return email;
+    }
+
+    private String mfaChallengeFor(String email, RequestPostProcessor ip) throws Exception {
+        String loginBody =
+                mockMvc.perform(
+                                jsonPost(
+                                        "/api/auth/login",
+                                        Map.of("identifier", email, "password", "Password123!"),
+                                        ip))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.mfaRequired").value(true))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        return readJsonField(loginBody, "mfaToken");
     }
 
     @SuppressWarnings("unchecked")

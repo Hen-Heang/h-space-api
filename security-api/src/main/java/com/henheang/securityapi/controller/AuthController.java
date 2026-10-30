@@ -88,6 +88,11 @@ public class AuthController extends BaseController {
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
         return refreshTokenService
                 .validateRefreshToken(request.getRefreshToken())
+                // Same rule as JwtAuthenticationFilter: no session for an
+                // unverified email.
+                .filter(
+                        refreshToken ->
+                                Boolean.TRUE.equals(refreshToken.getUser().getEmailVerified()))
                 .map(
                         refreshToken -> {
                             User user = refreshToken.getUser();

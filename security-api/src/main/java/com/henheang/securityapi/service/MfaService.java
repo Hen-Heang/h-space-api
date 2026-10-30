@@ -1,5 +1,7 @@
 package com.henheang.securityapi.service;
 
+import java.util.OptionalLong;
+
 public interface MfaService {
 
     String generateSecret();
@@ -14,4 +16,8 @@ public interface MfaService {
     String generateQrCodeImageBase64(String accountEmail, String secret);
 
     boolean verifyCode(String secret, String code);
+
+    // Like verifyCode, but answers which TOTP time step the code belongs to,
+    // so sign-in can refuse a code that was already used.
+    OptionalLong matchTimeStep(String secret, String code);
 }

@@ -24,6 +24,7 @@ import com.henheang.securityapi.service.MfaBackupCodeService;
 import com.henheang.securityapi.service.MfaService;
 import com.henheang.securityapi.service.RefreshTokenService;
 import com.henheang.securityapi.service.RoleService;
+import com.henheang.securityapi.service.TokenBlacklistService;
 import com.henheang.securityapi.service.UserRoleService;
 import com.henheang.securityapi.service.UserService;
 import com.henheang.securityapi.validation.UsernameRules;
@@ -31,6 +32,7 @@ import jakarta.transaction.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -70,6 +72,7 @@ public class AuthServiceImpl implements AuthService {
     private final AccountUnlockService accountUnlockService;
     private final EmailLoginCodeService emailLoginCodeService;
     private final AccountAccessService accountAccessService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Value("${jwt.expiration}")
     private String jwtExpirationString;
@@ -115,16 +118,10 @@ public class AuthServiceImpl implements AuthService {
             if (savedUser.getEmail() != null) {
                 emailVerificationService.sendVerificationEmail(savedUser);
             }
-            // Generate JWT token
-            String token = jwtTokenProvider.generateToken(savedUser);
-            // Generate refresh token
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser);
-            // expiresIn reflects the access token's lifetime, not the refresh token's
-            Duration duration = Duration.parse(jwtExpirationString);
-
-            Long expirationTimeInSeconds = duration.getSeconds();
             auditLogService.log(AuditEventType.SIGNUP, savedUser.getId(), savedUser.getEmail());
-            return new AuthResponse(token, refreshToken.getRawToken(), expirationTimeInSeconds);
+            // No tokens: like login(), a session has to wait for the verified
+            // email. Signing in afterwards is what issues them.
+            return AuthResponse.emailVerificationRequired();
 
         } catch (Exception e) {
             logger.error(
@@ -151,16 +148,11 @@ public class AuthServiceImpl implements AuthService {
                     findByLoginIdentifier(identifier)
                             .orElseThrow(() -> new AuthException(ExitCode.INVALID_CREDENTIALS));
 
-            // Successful login: clear any accumulated failed-attempt count/lock
-            if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
-                user.setFailedLoginAttempts(0);
-                user.setLockedUntil(null);
-                userRepository.save(user);
-            }
-
             // Password verified, but MFA is enabled: don't hand out real tokens
             // yet. Issue a short-lived challenge token that only /mfa/verify
             // will accept, and require the caller to present a valid TOTP code.
+            // The failed-attempt count stays until that code is right, so the
+            // password alone can't keep resetting it between code guesses.
             if (user.isMfaEnabled()) {
                 String mfaToken =
                         jwtTokenProvider.generateToken(
@@ -168,6 +160,7 @@ public class AuthServiceImpl implements AuthService {
                 return AuthResponse.mfaRequired(mfaToken);
             }
 
+            clearFailedLoginAttempts(user);
             auditLogService.log(AuditEventType.LOGIN_SUCCESS, user.getId(), user.getEmail());
             loginHistoryService.recordSuccess(user, user.getEmail());
             return issueTokens(user);
@@ -292,10 +285,19 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    private void clearFailedLoginAttempts(User user) {
+        if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
+    }
+
     @Override
     public Object verifyMfaAndIssueTokens(String mfaToken, String code) {
         if (!jwtTokenProvider.validateToken(mfaToken)
-                || !"mfa_challenge".equals(jwtTokenProvider.getTokenTypeFromToken(mfaToken))) {
+                || !"mfa_challenge".equals(jwtTokenProvider.getTokenTypeFromToken(mfaToken))
+                || tokenBlacklistService.isRevoked(jwtTokenProvider.getJtiFromToken(mfaToken))) {
             throw new AuthException(
                     ExitCode.TOKEN_INVALID, "Invalid or expired MFA challenge token");
         }
@@ -311,10 +313,23 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException(ExitCode.MFA_CODE_INVALID);
         }
 
-        if (mfaService.verifyCode(user.getMfaSecret(), code)) {
+        // Wrong codes count toward the same lock as wrong passwords.
+        if (!user.isAccountNonLocked()) {
+            loginHistoryService.recordFailure(user.getEmail(), "ACCOUNT_LOCKED");
+            throw new AuthException(
+                    ExitCode.ACCOUNT_LOCKED,
+                    "Account is temporarily locked due to too many failed login attempts. Try again later.");
+        }
+
+        // A code is accepted once: its time step must be later than the last
+        // one used. A replayed code falls through and counts as a wrong one.
+        OptionalLong step = mfaService.matchTimeStep(user.getMfaSecret(), code);
+        if (step.isPresent()
+                && userRepository.claimMfaTimeStep(user.getId(), step.getAsLong()) == 1) {
+            user.setMfaLastUsedStep(step.getAsLong());
             auditLogService.log(
                     AuditEventType.LOGIN_SUCCESS, user.getId(), user.getEmail(), "via MFA");
-            return issueTokens(user);
+            return completeMfaSignIn(user, mfaToken);
         }
 
         if (mfaBackupCodeService.verifyAndConsume(user, code)) {
@@ -324,11 +339,21 @@ public class AuthServiceImpl implements AuthService {
                     user.getId(),
                     user.getEmail(),
                     "via MFA backup code");
-            return issueTokens(user);
+            return completeMfaSignIn(user, mfaToken);
         }
 
+        registerFailedLoginAttempt(user);
         auditLogService.log(AuditEventType.MFA_CHALLENGE_FAILED, user.getId(), user.getEmail());
         throw new AuthException(ExitCode.MFA_CODE_INVALID);
+    }
+
+    // A challenge signs in once: it's revoked before the tokens are issued.
+    private AuthResponse completeMfaSignIn(User user, String mfaToken) {
+        tokenBlacklistService.revoke(
+                jwtTokenProvider.getJtiFromToken(mfaToken),
+                jwtTokenProvider.getExpirationFromToken(mfaToken));
+        clearFailedLoginAttempts(user);
+        return issueTokens(user);
     }
 
     @Override
@@ -357,6 +382,19 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException(
                     ExitCode.OAUTH_ERROR,
                     "This email is already registered with a different sign-in method");
+        } else if (!user.isAccountNonLocked()) {
+            loginHistoryService.recordFailure(user.getEmail(), "ACCOUNT_LOCKED");
+            throw new AuthException(
+                    ExitCode.ACCOUNT_LOCKED,
+                    "Account is temporarily locked due to too many failed login attempts. Try again later.");
+        }
+
+        // Google replaces the password, not the second factor.
+        if (user.isMfaEnabled()) {
+            String mfaToken =
+                    jwtTokenProvider.generateToken(
+                            user.getId(), "mfa_challenge", MFA_CHALLENGE_DURATION);
+            return AuthResponse.mfaRequired(mfaToken);
         }
 
         auditLogService.log(
