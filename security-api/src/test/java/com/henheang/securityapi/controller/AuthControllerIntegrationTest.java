@@ -1,5 +1,6 @@
 package com.henheang.securityapi.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -10,8 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.henheang.securityapi.domain.AuditEventType;
+import com.henheang.securityapi.domain.AuditLog;
 import com.henheang.securityapi.domain.EmailVerificationToken;
 import com.henheang.securityapi.domain.User;
+import com.henheang.securityapi.repository.AuditLogRepository;
 import com.henheang.securityapi.repository.EmailVerificationTokenRepository;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.service.EmailService;
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -47,6 +52,7 @@ class AuthControllerIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository userRepository;
     @Autowired private EmailVerificationTokenRepository emailVerificationTokenRepository;
+    @Autowired private AuditLogRepository auditLogRepository;
 
     // Real EmailService would try a live SMTP connection - mocked so
     // signup/verification flows run without network access, while the
@@ -445,6 +451,16 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.email").value(email))
                 .andExpect(jsonPath("$.data.emailVerified").value(true));
+
+        // The sign-up audit row references a user created in the same request,
+        // so it can only be written once that request's transaction commits.
+        User user = userRepository.findByEmail(email).orElseThrow();
+        assertThat(
+                        auditLogRepository
+                                .findAllByUserIdOrderByCreatedAtDesc(
+                                        user.getId(), Pageable.unpaged())
+                                .map(AuditLog::getEventType))
+                .contains(AuditEventType.SIGNUP, AuditEventType.LOGIN_SUCCESS);
 
         // One-time: the same code can't be used again.
         mockMvc.perform(
