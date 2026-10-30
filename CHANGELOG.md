@@ -28,6 +28,12 @@ project has no released versions yet, so everything lives under
 - CI `image` job: builds the `security-api` image and smoke-tests it against
   Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
   (`latest`, `sha-<commit>`, version tags) and records the verified digest.
+- `deploy/`: production stack for a single VPS — `compose.prod.yaml` runs
+  the CI image (pinned by digest) behind Caddy for automatic HTTPS, with
+  only Caddy publishing ports, the `prod` profile, no default passwords,
+  capped container logs, and a `backup` service taking a daily `pg_dump`
+  (14-day retention). `restore.sh` restores a dump after taking a safety
+  backup. Step-by-step runbook: `docs/deploy-vps.md`.
 
 ### Changed
 - Renamed the shared library module `common-api` to `api-core` and its

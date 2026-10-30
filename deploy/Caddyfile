@@ -1,0 +1,15 @@
+# Caddy terminates HTTPS and forwards to security-api. It obtains and renews
+# the Let's Encrypt certificate for API_DOMAIN by itself - the domain's DNS A
+# record must point at this server and ports 80/443 must be open.
+{
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# Caddy replaces any client-sent X-Forwarded-For with the real client IP
+	# and sets X-Forwarded-Proto: https, which Tomcat's RemoteIpValve then
+	# trusts because Caddy is on the private Docker network.
+	reverse_proxy security-api:8080
+}
