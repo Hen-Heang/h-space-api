@@ -2,4 +2,5 @@ rootProject.name = 'h-space-api'
 include 'security-api'
 include 'open-api'
 include 'api-core'
+include 'finance-api'
 

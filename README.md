@@ -37,6 +37,7 @@ open-api     (sample business API protected by security-api)           ── ru
 | `api-core`   | —     | ❌ off  | Shared library: API response envelopes (`ApiResponse`, `ApiStatus`, `StatusCode`), pagination, enum converters, interceptors. Built as a plain `jar` and consumed by the other modules — not run directly. |
 | `security-api` | 8080  | ✅ on   | Core authentication service: signup/login, JWT issue/refresh/revocation, Google ID-token login, MFA (TOTP + backup codes), email verification, password reset, account lockout/unlock, RBAC (roles/permissions), user management, audit logging, rate limiting, Swagger UI. |
 | `open-api`      | 8082  | ✅ on   | Example business API (to-do lists/items) that depends on `security-api` for authentication. |
+| `finance-api`   | 8083  | ✅ on   | Personal finance API (scaffold, no endpoints yet — see `docs/finance-api.md`), secured by `security-api`'s JWT. |
 
 Dependency wiring lives in the **root `build.gradle`** (`subprojects { ... }`
 plus per-project blocks), so most dependencies are declared once at the top.
@@ -360,7 +361,7 @@ shape across modules):
 
 | Key | Source | Notes |
 |-----|--------|-------|
-| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`api-core`, not run directly), 8080 (`security-api`), 8082 (`open-api`) |
+| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`api-core`, not run directly), 8080 (`security-api`), 8082 (`open-api`), 8083 (`finance-api`) |
 | `spring.datasource.url` | `${DB_URL}` | Defaults to `jdbc:postgresql://localhost:5432/jwt_auth` (`jwt_auth_test` under the `test` profile) |
 | `spring.flyway.enabled` | `true` | Flyway is the sole schema authority — see `db/migration/` |
 | `spring.jpa.hibernate.ddl-auto` | `validate` (all profiles) | Hibernate only verifies the schema at startup; it never creates/alters it |

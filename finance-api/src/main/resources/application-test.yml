@@ -1,0 +1,34 @@
+# Used by `./gradlew test` and CI. The secret defaults below are fixed,
+# non-sensitive values used only for running tests.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+      # finance-api shares security-api's test database. Run in a schema of
+      # its own so its Flyway history never collides with security-api's
+      # tests in `public` (or open-api's in `open_api_test`).
+      schema: finance_api_test
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth_test}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123}
+
+  flyway:
+    default-schema: finance_api_test
+
+  jpa:
+    hibernate:
+      # Same as security-api: tests run against the Flyway schema, never a
+      # Hibernate-generated one.
+      ddl-auto: validate
+    show-sql: false
+
+jwt:
+  secret: ${JWT_SECRET:6KReGxxaodLtxSNprFo4WeStpovMt6VOqiFOA1FtY67PfSkPckod2OzDIKpnLgsYAjEjQGZThOknDp+CD2+gcA==}
+
+mfa:
+  encryption-key: ${MFA_ENCRYPTION_KEY:A5WWtiNdlns02Wd/qEkyzrioceZqK2kZ4/CwJCsAC00=}
+
+logging:
+  level:
+    com.henheang.financeapi: WARN
