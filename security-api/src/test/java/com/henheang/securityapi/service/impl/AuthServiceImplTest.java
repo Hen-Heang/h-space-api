@@ -31,6 +31,7 @@ import com.henheang.securityapi.service.MfaBackupCodeService;
 import com.henheang.securityapi.service.MfaService;
 import com.henheang.securityapi.service.RefreshTokenService;
 import com.henheang.securityapi.service.RoleService;
+import com.henheang.securityapi.service.TokenBlacklistService;
 import com.henheang.securityapi.service.UserRoleService;
 import com.henheang.securityapi.service.UserService;
 import java.util.Optional;
@@ -106,7 +107,8 @@ class AuthServiceImplTest {
                         emailVerificationService,
                         accountUnlockService,
                         emailLoginCodeService,
-                        accountAccessService);
+                        accountAccessService,
+                        mock(TokenBlacklistService.class));
         ReflectionTestUtils.setField(authService, "jwtExpirationString", "PT24H");
         ReflectionTestUtils.setField(authService, "maxFailedLoginAttempts", 5);
         ReflectionTestUtils.setField(authService, "accountLockDurationMinutes", 15L);

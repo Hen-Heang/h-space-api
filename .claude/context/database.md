@@ -8,7 +8,8 @@ default local creds `postgres`/`123`.
 - Migrations live in `security-api/src/main/resources/db/migration/`:
   `V1__baseline.sql`, `V2__account_security_tokens.sql`,
   `V3__mfa_recovery_codes.sql`, `V4__username_and_email_login_codes.sql`,
-  `V5__signup_invites.sql`. They run automatically on startup.
+  `V5__signup_invites.sql`, `V6__mfa_last_used_step.sql`. They run
+  automatically on startup.
 - `spring.jpa.hibernate.ddl-auto` is `validate` in every `security-api`
   profile, `test` included — Hibernate checks the entity mapping matches the
   schema but never creates/alters anything. A mismatch fails fast at startup,
