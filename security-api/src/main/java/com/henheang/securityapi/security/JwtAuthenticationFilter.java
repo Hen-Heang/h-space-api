@@ -37,8 +37,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = getJwtFromRequest(request);
 
+            // Access tokens carry no token_type. Anything typed - the
+            // mfa_challenge token login hands out before the second factor -
+            // is signed with the same key but must never authenticate a
+            // request on its own.
             if (StringUtils.hasText(jwt)
                     && tokenProvider.validateToken(jwt)
+                    && tokenProvider.getTokenTypeFromToken(jwt) == null
                     && !tokenBlacklistService.isRevoked(tokenProvider.getJtiFromToken(jwt))) {
                 UUID userId = tokenProvider.getUserIdFromToken(jwt);
 
