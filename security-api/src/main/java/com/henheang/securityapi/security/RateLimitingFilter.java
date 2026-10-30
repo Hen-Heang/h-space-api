@@ -21,9 +21,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Caps requests per client IP on brute-forceable auth endpoints (login, signup, forgot-password).
- * In-memory only - fine for a single instance; a multi-instance deployment would need a shared
- * store (e.g. Redis) instead.
+ * Caps requests per client IP on brute-forceable or email-sending auth endpoints (login, signup,
+ * forgot-password, resends, ...). In-memory only - fine for a single instance; a multi-instance
+ * deployment would need a shared store (e.g. Redis) instead.
  */
 @Component
 public class RateLimitingFilter extends OncePerRequestFilter {
@@ -33,6 +33,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                     "/api/auth/login",
                     "/api/auth/signup",
                     "/api/auth/forgot-password",
+                    "/api/auth/resend-verification",
+                    "/api/auth/resend-unlock-link",
+                    "/api/auth/oauth2/google",
                     "/api/auth/email-code/request",
                     "/api/auth/email-code/verify",
                     "/api/auth/mfa/setup",

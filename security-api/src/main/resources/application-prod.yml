@@ -22,6 +22,12 @@ jwt:
 mfa:
   encryption-key: ${MFA_ENCRYPTION_KEY}
 
+# The web app's origin(s), e.g. https://hengo.henheang.site - no localhost
+# fallback in production.
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
 logging:
   level:
     root: WARN

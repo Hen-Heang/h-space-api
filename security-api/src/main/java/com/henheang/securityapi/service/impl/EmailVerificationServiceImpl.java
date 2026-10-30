@@ -11,6 +11,7 @@ import com.henheang.securityapi.security.SecureTokenGenerator;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.service.EmailVerificationService;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,11 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     @Value("${app.frontend-url:http://localhost:3000}")
     private String frontendUrl;
+
+    // A resend inside this window of the last email is skipped, so the public
+    // resend endpoint can't be used to flood someone's inbox.
+    @Value("${app.email.resend-cooldown-seconds:60}")
+    private long resendCooldownSeconds;
 
     @Override
     @Transactional
@@ -90,7 +96,21 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             return;
         }
 
+        if (sentWithinCooldown(user)) {
+            logger.info("Verification resend skipped (cooldown) for user {}", user.getId());
+            return;
+        }
+
         sendVerificationEmail(user);
+    }
+
+    private boolean sentWithinCooldown(User user) {
+        Instant cutoff = Instant.now().minusSeconds(resendCooldownSeconds);
+        return emailVerificationTokenRepository.findByUser(user).stream()
+                .anyMatch(
+                        token ->
+                                token.getCreatedAt() != null
+                                        && token.getCreatedAt().isAfter(cutoff));
     }
 
     @Override

@@ -370,7 +370,9 @@ shape across modules):
 | `jwt.refresh-token.expiration` | `P7D` | Refresh-token lifetime |
 | `mfa.encryption-key` | `${MFA_ENCRYPTION_KEY}` | Base64 AES-256 key encrypting TOTP secrets at rest (`MfaEncryptionConfig`/`MfaSecretConverter`). No fallback outside `local`/`test`. |
 | `google.client-ids` | `${GOOGLE_CLIENT_IDS:}` | Comma-separated allowed OAuth client IDs; empty disables Google sign-in |
-| `app.frontend-url` | `${FRONTEND_URL}` | Used for CORS / reset, verification, and unlock links |
+| `app.frontend-url` | `${FRONTEND_URL}` | Base URL of reset, verification, and unlock links |
+| `app.cors.allowed-origins` | `${CORS_ALLOWED_ORIGINS}` | Comma-separated browser origins allowed by CORS (patterns like `https://*.vercel.app` allowed, `*` refused). Defaults to `http://localhost:3000,http://127.0.0.1:3000`; **required in `prod`** (no default). |
+| `app.email.resend-cooldown-seconds` | `60` | Minimum gap between resent verification / unlock emails to one account |
 | `app.account-lock.max-failed-attempts` | `5` | Failed logins before an account is locked |
 | `app.account-lock.lock-duration-minutes` | `15` | How long a lockout lasts before it auto-clears |
 | `app.account-lock.unlock-token-expiration-minutes` | `60` | TTL of the emailed self-service unlock link |

@@ -18,6 +18,10 @@ jwt:
 mfa:
   encryption-key: ${MFA_ENCRYPTION_KEY}
 
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
 logging:
   level:
     root: WARN

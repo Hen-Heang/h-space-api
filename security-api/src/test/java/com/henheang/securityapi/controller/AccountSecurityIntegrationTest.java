@@ -117,6 +117,20 @@ class AccountSecurityIntegrationTest {
     }
 
     @Test
+    void resendEndpoints_areRateLimitedPerIp() throws Exception {
+        for (String uri :
+                new String[] {"/api/auth/resend-verification", "/api/auth/resend-unlock-link"}) {
+            RequestPostProcessor ip = uniqueClientIp();
+            for (int i = 0; i < 5; i++) {
+                mockMvc.perform(jsonPost(uri, Map.of("email", uniqueEmail()), ip))
+                        .andExpect(status().isOk());
+            }
+            mockMvc.perform(jsonPost(uri, Map.of("email", uniqueEmail()), ip))
+                    .andExpect(status().isTooManyRequests());
+        }
+    }
+
+    @Test
     void unlockAccount_withInvalidToken_returns400() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
         mockMvc.perform(jsonPost("/api/auth/unlock-account", Map.of("token", "bogus-token"), ip))

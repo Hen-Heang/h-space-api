@@ -93,6 +93,37 @@ class AccountUnlockServiceImplTest {
     }
 
     @Test
+    void resendUnlockEmail_withinCooldown_sendsNothing() {
+        ReflectionTestUtils.setField(service, "resendCooldownSeconds", 60L);
+        User user = lockedUser();
+        AccountUnlockToken recent = new AccountUnlockToken();
+        recent.setCreatedAt(Instant.now().minusSeconds(10));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(accountUnlockTokenRepository.findByUser(user)).thenReturn(List.of(recent));
+
+        service.resendUnlockEmail(user.getEmail());
+
+        verify(accountUnlockTokenRepository, never()).save(any());
+        verify(emailService, never()).sendAccountLockedEmail(any(), any(), any());
+    }
+
+    @Test
+    void resendUnlockEmail_afterCooldown_sendsNewLink() {
+        ReflectionTestUtils.setField(service, "resendCooldownSeconds", 60L);
+        User user = lockedUser();
+        AccountUnlockToken old = new AccountUnlockToken();
+        old.setCreatedAt(Instant.now().minusSeconds(120));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(accountUnlockTokenRepository.findByUser(user)).thenReturn(List.of(old));
+        when(secureTokenGenerator.generate()).thenReturn("secure-token");
+        when(emailService.sendAccountLockedEmail(any(), any(), any())).thenReturn(true);
+
+        service.resendUnlockEmail(user.getEmail());
+
+        verify(accountUnlockTokenRepository).save(any(AccountUnlockToken.class));
+    }
+
+    @Test
     void unlockAccount_withValidToken_clearsLockAndDeletesToken() {
         User user = lockedUser();
         AccountUnlockToken token = new AccountUnlockToken();
