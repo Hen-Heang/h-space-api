@@ -23,10 +23,17 @@ import com.henheang.securityapi.validation.UsernameRules;
 import dev.samstevens.totp.code.DefaultCodeGenerator;
 import dev.samstevens.totp.secret.DefaultSecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
@@ -334,6 +341,65 @@ class AuthControllerIntegrationTest {
 
         // The token just presented was revoked by rotation, so reusing it must fail.
         mockMvc.perform(jsonPost("/api/auth/refresh", refreshRequest, ip))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // Committed for real, so the two requests race on actual rows.
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void refresh_withTheSameTokenAtOnce_rotatesItOnlyOnce() throws Exception {
+        String refreshToken =
+                readJsonField(signUpAndSignIn(uniqueEmail(), uniqueClientIp()), "refreshToken");
+        Map<String, String> refreshRequest = Map.of("refreshToken", refreshToken);
+
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<Integer>> statuses = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                RequestPostProcessor ip = uniqueClientIp();
+                statuses.add(
+                        pool.submit(
+                                () -> {
+                                    start.await();
+                                    return mockMvc.perform(
+                                                    jsonPost(
+                                                            "/api/auth/refresh",
+                                                            refreshRequest,
+                                                            ip))
+                                            .andReturn()
+                                            .getResponse()
+                                            .getStatus();
+                                }));
+            }
+            start.countDown();
+
+            List<Integer> results = new ArrayList<>();
+            for (Future<Integer> status : statuses) {
+                results.add(status.get(30, TimeUnit.SECONDS));
+            }
+            assertThat(results).containsExactlyInAnyOrder(200, 401);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    // Logout is idempotent: a refresh token that's unknown or already spent
+    // leaves nothing to revoke, and the access token is still blacklisted.
+    @Test
+    void logout_withAnUnknownRefreshToken_stillSignsOut() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String accessToken = readJsonField(signUpAndSignIn(uniqueEmail(), ip), "accessToken");
+
+        mockMvc.perform(
+                        jsonPost("/api/auth/logout", Map.of("refreshToken", "not-a-real-token"), ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized());
     }
 

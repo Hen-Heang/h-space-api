@@ -13,5 +13,10 @@ public interface RefreshTokenService {
 
     Optional<RefreshToken> validateRefreshToken(String token);
 
+    // Spends a valid refresh token and returns its replacement (raw value
+    // set). Empty when the token is unknown, expired, already spent or its
+    // user's email isn't verified.
+    Optional<RefreshToken> rotateRefreshToken(String token);
+
     void logout(@NotBlank(message = "Refresh token is required") String refreshToken);
 }
