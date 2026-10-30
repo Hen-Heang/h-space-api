@@ -51,13 +51,18 @@ class SupabaseBridgeServiceImplTest {
     }
 
     private SupabaseBridgeServiceImpl bridge(String url, String secret, String serviceRoleKey) {
+        return bridge(url, secret, serviceRoleKey, Duration.ofMinutes(10));
+    }
+
+    private SupabaseBridgeServiceImpl bridge(
+            String url, String secret, String serviceRoleKey, Duration ttl) {
         return new SupabaseBridgeServiceImpl(
                 userService,
                 adminClient,
                 url,
                 secret,
                 serviceRoleKey,
-                Duration.ofHours(1),
+                ttl,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -94,8 +99,26 @@ class SupabaseBridgeServiceImplTest {
         assertThat(claims.get("role")).isEqualTo("authenticated");
         assertThat(claims.getAudience()).isEqualTo("authenticated");
         assertThat(claims.get("email")).isEqualTo("jane@example.com");
-        assertThat(claims.getExpiration().toInstant()).isEqualTo(NOW.plus(Duration.ofHours(1)));
-        assertThat(response.getExpiresIn()).isEqualTo(3600L);
+        assertThat(claims.getExpiration().toInstant()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
+        assertThat(response.getExpiresIn()).isEqualTo(600L);
+    }
+
+    @Test
+    void issueToken_neverOutlivesTheCap_whateverIsConfigured() {
+        when(adminClient.userExists(user.getId())).thenReturn(true);
+        SupabaseBridgeServiceImpl longLived =
+                bridge(
+                        "https://project.supabase.co",
+                        JWT_SECRET,
+                        "service-role-key",
+                        Duration.ofHours(1));
+
+        SupabaseTokenResponse response = longLived.issueToken(user.getId());
+
+        assertThat(parse(response.getAccessToken()).getExpiration().toInstant())
+                .isEqualTo(NOW.plus(SupabaseBridgeServiceImpl.MAX_TOKEN_TTL));
+        assertThat(response.getExpiresIn())
+                .isEqualTo(SupabaseBridgeServiceImpl.MAX_TOKEN_TTL.getSeconds());
     }
 
     @Test

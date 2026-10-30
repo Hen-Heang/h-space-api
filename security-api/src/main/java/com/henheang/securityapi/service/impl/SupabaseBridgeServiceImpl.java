@@ -19,6 +19,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.crypto.SecretKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -36,7 +38,12 @@ import org.springframework.util.StringUtils;
 @Service
 public class SupabaseBridgeServiceImpl implements SupabaseBridgeService {
 
+    private static final Logger logger = LoggerFactory.getLogger(SupabaseBridgeServiceImpl.class);
     private static final String AUTHENTICATED = "authenticated";
+
+    // Logout revokes this service's tokens but can't reach one already handed
+    // to Supabase, so it stays usable until it expires - keep that short.
+    static final Duration MAX_TOKEN_TTL = Duration.ofMinutes(15);
 
     private final UserService userService;
     private final SupabaseAdminClient supabaseAdminClient;
@@ -58,7 +65,7 @@ public class SupabaseBridgeServiceImpl implements SupabaseBridgeService {
             @Value("${supabase.url:}") String supabaseUrl,
             @Value("${supabase.jwt-secret:}") String jwtSecret,
             @Value("${supabase.service-role-key:}") String serviceRoleKey,
-            @Value("${supabase.bridge-token-ttl:PT1H}") Duration tokenTtl) {
+            @Value("${supabase.bridge-token-ttl:PT10M}") Duration tokenTtl) {
         this(
                 userService,
                 supabaseAdminClient,
@@ -82,8 +89,19 @@ public class SupabaseBridgeServiceImpl implements SupabaseBridgeService {
         this.supabaseUrl = supabaseUrl;
         this.jwtSecret = jwtSecret;
         this.serviceRoleKey = serviceRoleKey;
-        this.tokenTtl = tokenTtl;
+        this.tokenTtl = capped(tokenTtl);
         this.clock = clock;
+    }
+
+    private static Duration capped(Duration tokenTtl) {
+        if (tokenTtl.compareTo(MAX_TOKEN_TTL) <= 0) {
+            return tokenTtl;
+        }
+        logger.warn(
+                "supabase.bridge-token-ttl {} is longer than the {} cap; using the cap",
+                tokenTtl,
+                MAX_TOKEN_TTL);
+        return MAX_TOKEN_TTL;
     }
 
     @Override

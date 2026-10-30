@@ -62,7 +62,8 @@ supabase:
   url: ${SUPABASE_URL:}
   jwt-secret: ${SUPABASE_JWT_SECRET:}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
-  bridge-token-ttl: ${SUPABASE_BRIDGE_TOKEN_TTL:PT1H}
+  # Capped at PT15M: logout can't revoke a token already handed out.
+  bridge-token-ttl: ${SUPABASE_BRIDGE_TOKEN_TTL:PT10M}
   # One-off account import (SupabaseUserImportRunner) - off unless started with
   # --supabase.import.enabled=true. See docs/supabase-user-import.md.
   import:
