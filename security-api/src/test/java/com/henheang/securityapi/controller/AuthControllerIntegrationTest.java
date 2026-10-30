@@ -23,7 +23,9 @@ import com.henheang.securityapi.validation.UsernameRules;
 import dev.samstevens.totp.code.DefaultCodeGenerator;
 import dev.samstevens.totp.secret.DefaultSecretGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,6 +38,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Propagation;
@@ -605,9 +608,98 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mfaChallenge_canOnlyBeRedeemedOnce() throws Exception {
+        String secret = new DefaultSecretGenerator().generate();
+        String mfaToken = loginWithMfaEnabled(secret, uniqueClientIp());
+        long step = currentTimeStep();
+
+        verifyMfa(mfaToken, totp(secret, step)).andExpect(status().isOk());
+
+        // A different, still-valid code: only the challenge's reuse is refused.
+        verifyMfa(mfaToken, totp(secret, step + 1))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1005));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void mfaCode_cannotBeReplayedOnAFreshChallenge() throws Exception {
+        String secret = new DefaultSecretGenerator().generate();
+        String email = signUpWithMfaEnabled(secret, uniqueClientIp());
+        String code = totp(secret, currentTimeStep());
+
+        verifyMfa(mfaChallengeFor(email, uniqueClientIp()), code).andExpect(status().isOk());
+
+        verifyMfa(mfaChallengeFor(email, uniqueClientIp()), code)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1008));
+    }
+
+    // Re-entering the password must not reset the count between code guesses.
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void wrongMfaCodes_lockTheAccount_evenWhenThePasswordIsReentered() throws Exception {
+        String secret = new DefaultSecretGenerator().generate();
+        String email = signUpWithMfaEnabled(secret, uniqueClientIp());
+        String wrong = wrongTotp(secret);
+
+        String firstChallenge = mfaChallengeFor(email, uniqueClientIp());
+        for (int i = 0; i < 3; i++) {
+            verifyMfa(firstChallenge, wrong).andExpect(status().isUnauthorized());
+        }
+        String secondChallenge = mfaChallengeFor(email, uniqueClientIp());
+        for (int i = 0; i < 2; i++) {
+            verifyMfa(secondChallenge, wrong).andExpect(status().isUnauthorized());
+        }
+
+        // Five wrong codes in all: even the right one is refused now.
+        verifyMfa(secondChallenge, totp(secret, currentTimeStep()))
+                .andExpect(jsonPath("$.status.code").value(1002));
+        assertThat(userRepository.findByEmail(email).orElseThrow().getLockedUntil()).isNotNull();
+    }
+
+    // Each call from its own client IP, clear of the per-IP rate limit.
+    private ResultActions verifyMfa(String mfaToken, String code) throws Exception {
+        return mockMvc.perform(
+                jsonPost(
+                        "/api/auth/mfa/verify",
+                        Map.of("mfaToken", mfaToken, "code", code),
+                        uniqueClientIp()));
+    }
+
+    private static long currentTimeStep() {
+        return Math.floorDiv(new SystemTimeProvider().getTime(), 30);
+    }
+
+    private static String totp(String secret, long timeStep) throws Exception {
+        return new DefaultCodeGenerator().generate(secret, timeStep);
+    }
+
+    // A six-digit code that's valid for none of the steps the server accepts.
+    private static String wrongTotp(String secret) throws Exception {
+        long step = currentTimeStep();
+        Set<String> valid = new HashSet<>();
+        for (long s = step - 2; s <= step + 2; s++) {
+            valid.add(totp(secret, s));
+        }
+        for (int candidate = 0; ; candidate++) {
+            String code = String.format("%06d", candidate);
+            if (!valid.contains(code)) {
+                return code;
+            }
+        }
+    }
+
     // Signs up a verified user with MFA on and logs in with the password,
     // returning the mfa_challenge token the login answers with.
     private String loginWithMfaEnabled(String mfaSecret, RequestPostProcessor ip) throws Exception {
+        return mfaChallengeFor(signUpWithMfaEnabled(mfaSecret, ip), ip);
+    }
+
+    private String signUpWithMfaEnabled(String mfaSecret, RequestPostProcessor ip)
+            throws Exception {
         String email = uniqueEmail();
         Map<String, String> signUpRequest =
                 Map.of(
@@ -626,7 +718,10 @@ class AuthControllerIntegrationTest {
         user.setMfaSecret(mfaSecret);
         user.setMfaEnabled(true);
         userRepository.save(user);
+        return email;
+    }
 
+    private String mfaChallengeFor(String email, RequestPostProcessor ip) throws Exception {
         String loginBody =
                 mockMvc.perform(
                                 jsonPost(
