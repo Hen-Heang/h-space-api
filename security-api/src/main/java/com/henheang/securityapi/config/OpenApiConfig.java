@@ -19,11 +19,9 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(
                         new Info()
-                                .title("H-Space API")
+                                .title("H-Space API API")
                                 .version("1.0")
-                                .description(
-                                        "Authentication service: JWT, Google sign-in, MFA and"
-                                                + " user management")
+                                .description("Authentication service with JWT and OAuth2 support")
                                 .termsOfService("https://www.example.com/terms")
                                 .contact(
                                         new Contact()
