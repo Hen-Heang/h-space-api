@@ -185,3 +185,25 @@ project(':open-api') {
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
     }
 }
+
+// Configure finance-api module (personal finance; see docs/finance-api.md
+// before adding domain tables)
+project(':finance-api') {
+    dependencies {
+        implementation project(':api-core')
+        implementation project(':security-api')
+
+        // Same setup as open-api: validates security-api's JWTs
+        implementation 'org.springframework.boot:spring-boot-starter-security'
+        implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+        implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+        implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+        // Flyway runs security-api's migrations; finance tables will get
+        // their own migrations here once the data ownership is documented.
+        implementation 'org.flywaydb:flyway-core'
+        implementation 'org.flywaydb:flyway-database-postgresql'
+
+        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+    }
+}

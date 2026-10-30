@@ -7,6 +7,7 @@
 
 ./gradlew :security-api:bootRun    # port 8080
 ./gradlew :open-api:bootRun         # port 8082, needs security-api's JWT to authenticate
+./gradlew :finance-api:bootRun      # port 8083, needs security-api's JWT to authenticate
 
 ./gradlew test                     # all tests, JUnit 5
 ./gradlew :security-api:test       # one module

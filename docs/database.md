@@ -17,6 +17,8 @@
   schema (`open_api_test`, set in its `application-test.yml`) — otherwise its
   create-drop would drop `security-api`'s tables in `public` and fail the next
   `security-api` test run on a fresh database.
+- `finance-api` tests use Flyway + `validate` (like `security-api`), in their
+  own schema `finance_api_test`.
 - `jwt.secret` has a fallback default only in `local`/`dev`/`test` profiles
   for convenience; `prod` has no fallback and fails fast at startup if
   `JWT_SECRET` isn't set — externalize via env var for anything beyond local,
