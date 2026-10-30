@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.AuthException;
@@ -534,6 +535,60 @@ class AuthServiceImplTest {
         authService.sendEmailLoginCode("user@example.com");
 
         verify(emailLoginCodeService).sendCode("user@example.com");
+    }
+
+    private User googleUser() {
+        User user = persistedUser(UUID.randomUUID());
+        user.setEmailVerified(true);
+        user.setProvider(AuthProvider.GOOGLE);
+        when(googleTokenVerifier.verify("google-id-token"))
+                .thenReturn(
+                        new GoogleTokenVerifier.GooglePrincipal(
+                                "google-sub", "user@example.com", "User"));
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        return user;
+    }
+
+    @Test
+    void loginWithGoogle_withoutMfa_issuesTokens() {
+        User user = googleUser();
+        when(jwtTokenProvider.generateToken(user)).thenReturn("access-token");
+        when(refreshTokenService.createRefreshToken(user)).thenReturn(refreshTokenFor(user));
+
+        AuthResponse response = (AuthResponse) authService.loginWithGoogle("google-id-token");
+
+        assertThat(response.isMfaRequired()).isFalse();
+        assertThat(response.getAccessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void loginWithGoogle_withMfaEnabled_returnsChallengeInsteadOfTokens() {
+        User user = googleUser();
+        user.setMfaEnabled(true);
+        when(jwtTokenProvider.generateToken(eq(user.getId()), eq("mfa_challenge"), any()))
+                .thenReturn("mfa-challenge-token");
+
+        AuthResponse response = (AuthResponse) authService.loginWithGoogle("google-id-token");
+
+        // Google replaces the password, not the second factor.
+        assertThat(response.isMfaRequired()).isTrue();
+        assertThat(response.getMfaToken()).isEqualTo("mfa-challenge-token");
+        assertThat(response.getAccessToken()).isNull();
+        verify(refreshTokenService, never()).createRefreshToken(any());
+    }
+
+    @Test
+    void loginWithGoogle_forLockedAccount_throws() {
+        User user = googleUser();
+        user.setLockedUntil(java.time.Instant.now().plusSeconds(600));
+
+        assertThatThrownBy(() -> authService.loginWithGoogle("google-id-token"))
+                .isInstanceOf(AuthException.class)
+                .satisfies(
+                        ex ->
+                                assertThat(((AuthException) ex).getExitCode())
+                                        .isEqualTo(ExitCode.ACCOUNT_LOCKED));
+        verify(refreshTokenService, never()).createRefreshToken(any());
     }
 
     @Test
