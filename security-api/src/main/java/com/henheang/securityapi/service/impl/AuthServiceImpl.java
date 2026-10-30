@@ -357,6 +357,19 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException(
                     ExitCode.OAUTH_ERROR,
                     "This email is already registered with a different sign-in method");
+        } else if (!user.isAccountNonLocked()) {
+            loginHistoryService.recordFailure(user.getEmail(), "ACCOUNT_LOCKED");
+            throw new AuthException(
+                    ExitCode.ACCOUNT_LOCKED,
+                    "Account is temporarily locked due to too many failed login attempts. Try again later.");
+        }
+
+        // Google replaces the password, not the second factor.
+        if (user.isMfaEnabled()) {
+            String mfaToken =
+                    jwtTokenProvider.generateToken(
+                            user.getId(), "mfa_challenge", MFA_CHALLENGE_DURATION);
+            return AuthResponse.mfaRequired(mfaToken);
         }
 
         auditLogService.log(
