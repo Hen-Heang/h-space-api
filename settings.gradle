@@ -3,3 +3,4 @@ include 'security-api'
 include 'open-api'
 include 'api-core'
 
+include 'hspace-api'

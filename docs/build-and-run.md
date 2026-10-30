@@ -7,6 +7,7 @@
 
 ./gradlew :security-api:bootRun    # port 8080
 ./gradlew :open-api:bootRun         # port 8082, needs security-api's JWT to authenticate
+./gradlew :hspace-api:bootRun       # port 8084, H-Space product API (same JWTs, same DB as security-api)
 
 ./gradlew test                     # all tests, JUnit 5
 ./gradlew :security-api:test       # one module

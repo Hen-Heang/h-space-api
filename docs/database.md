@@ -17,6 +17,13 @@
   schema (`open_api_test`, set in its `application-test.yml`) — otherwise its
   create-drop would drop `security-api`'s tables in `public` and fail the next
   `security-api` test run on a fresh database.
+- `hspace-api` adds its own migrations in
+  `hspace-api/src/main/resources/db/migration/`, numbered from **V100**
+  (`V100__inbox_items.sql`), so `security-api` keeps V1–V99. Both sets share
+  one `flyway_schema_history`: `hspace-api` runs with `out-of-order: true` so
+  a later `security-api` migration still applies after V100, and
+  `security-api` on its own ignores V100+ as future migrations. `hspace-api`
+  tests use Flyway + `validate` in their own schema `hspace_api_test`.
 - `jwt.secret` has a fallback default only in `local`/`dev`/`test` profiles
   for convenience; `prod` has no fallback and fails fast at startup if
   `JWT_SECRET` isn't set — externalize via env var for anything beyond local,
