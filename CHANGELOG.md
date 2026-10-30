@@ -28,6 +28,12 @@ project has no released versions yet, so everything lives under
 - CI `image` job: builds the `security-api` image and smoke-tests it against
   Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
   (`latest`, `sha-<commit>`, version tags) and records the verified digest.
+- `deploy/`: production stack for a single VPS — `compose.prod.yaml` runs
+  the CI image (pinned by digest) behind Caddy for automatic HTTPS, with
+  only Caddy publishing ports, the `prod` profile, no default passwords,
+  capped container logs, and a `backup` service taking a daily `pg_dump`
+  (14-day retention). `restore.sh` restores a dump after taking a safety
+  backup. Step-by-step runbook: `docs/deploy-vps.md`.
 
 ### Changed
 - Renamed the shared library module `common-api` to `api-core` and its
@@ -52,6 +58,10 @@ project has no released versions yet, so everything lives under
   as Spring bean names (`openApiConfig`) once `todoapi` component-scans
   `security-api`'s package — gave `todoapi`'s config bean an explicit,
   distinct name.
+- `security-api` answered `500` for any URL with no handler (e.g. a typo or
+  a scanner probing `/wp-admin`) because the catch-all exception handler
+  swallowed Spring's `NoResourceFoundException`; it now answers `404` in
+  the usual `ApiResponse` envelope.
 
 ### Security
 - Removed hard-coded JWT secrets and database passwords from
@@ -62,3 +72,12 @@ project has no released versions yet, so everything lives under
   committed with a real-looking secret) is no longer tracked by git. See
   [SECURITY.md](SECURITY.md) for the historical-exposure note and rotation
   guidance.
+- Rate limiting and audit/login-history IPs no longer trust the first
+  `X-Forwarded-For` entry, which the caller controls — sending a new value
+  per request bypassed the per-IP limit on login, MFA and email-code
+  endpoints and forged the logged IP. The client IP now comes from Tomcat's
+  `RemoteIpValve` (`server.forward-headers-strategy: native`), which only
+  honours the header from a trusted (private/loopback) proxy.
+- Swagger UI and the OpenAPI spec are off in the `prod` profile
+  (`API_DOCS_ENABLED=true` turns them on temporarily); other profiles are
+  unchanged.
