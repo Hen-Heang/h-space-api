@@ -115,16 +115,10 @@ public class AuthServiceImpl implements AuthService {
             if (savedUser.getEmail() != null) {
                 emailVerificationService.sendVerificationEmail(savedUser);
             }
-            // Generate JWT token
-            String token = jwtTokenProvider.generateToken(savedUser);
-            // Generate refresh token
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser);
-            // expiresIn reflects the access token's lifetime, not the refresh token's
-            Duration duration = Duration.parse(jwtExpirationString);
-
-            Long expirationTimeInSeconds = duration.getSeconds();
             auditLogService.log(AuditEventType.SIGNUP, savedUser.getId(), savedUser.getEmail());
-            return new AuthResponse(token, refreshToken.getRawToken(), expirationTimeInSeconds);
+            // No tokens: like login(), a session has to wait for the verified
+            // email. Signing in afterwards is what issues them.
+            return AuthResponse.emailVerificationRequired();
 
         } catch (Exception e) {
             logger.error(

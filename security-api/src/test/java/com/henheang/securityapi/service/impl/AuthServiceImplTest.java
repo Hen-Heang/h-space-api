@@ -128,7 +128,7 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void signup_createsUserAndIssuesTokens() {
+    void signup_createsUserButIssuesNoTokensUntilTheEmailIsVerified() {
         SignUpRequest request =
                 new SignUpRequest("Jane Doe", "jane@example.com", null, "password123", "Jane.Doe");
         when(userService.existsByEmail(request.getEmail())).thenReturn(false);
@@ -137,15 +137,16 @@ class AuthServiceImplTest {
         UUID userId = UUID.randomUUID();
         User saved = persistedUser(userId);
         when(userService.saveUser(any(User.class))).thenReturn(saved);
-        when(jwtTokenProvider.generateToken(saved)).thenReturn("access-token");
-        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
 
         Object result = authService.signup(request);
 
         assertThat(result).isInstanceOf(AuthResponse.class);
         AuthResponse response = (AuthResponse) result;
-        assertThat(response.getAccessToken()).isEqualTo("access-token");
-        assertThat(response.getRefreshToken()).isEqualTo("raw-refresh-token");
+        assertThat(response.isEmailVerificationRequired()).isTrue();
+        assertThat(response.getAccessToken()).isNull();
+        assertThat(response.getRefreshToken()).isNull();
+        verify(jwtTokenProvider, never()).generateToken(any(User.class));
+        verify(refreshTokenService, never()).createRefreshToken(any());
         verify(auditLogService)
                 .log(
                         com.henheang.securityapi.domain.AuditEventType.SIGNUP,
@@ -289,8 +290,6 @@ class AuthServiceImplTest {
         when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
         User saved = persistedUser(UUID.randomUUID());
         when(userService.saveUser(any(User.class))).thenReturn(saved);
-        when(jwtTokenProvider.generateToken(saved)).thenReturn("access-token");
-        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
 
         authService.signup(request);
 
@@ -321,7 +320,6 @@ class AuthServiceImplTest {
         when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
         User saved = persistedUser(UUID.randomUUID());
         when(userService.saveUser(any(User.class))).thenReturn(saved);
-        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
 
         authService.signup(request);
 
@@ -497,7 +495,6 @@ class AuthServiceImplTest {
         when(roleService.getOrCreateRole("ROLE_USER")).thenReturn(new Role());
         User saved = persistedUser(UUID.randomUUID());
         when(userService.saveUser(any(User.class))).thenReturn(saved);
-        when(refreshTokenService.createRefreshToken(saved)).thenReturn(refreshTokenFor(saved));
 
         authService.signup(request);
 

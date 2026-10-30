@@ -20,6 +20,10 @@ public class AuthResponse {
     private boolean mfaRequired = false;
     private String mfaToken;
 
+    // When true, no tokens are issued: the account exists but its email must be
+    // verified before it can sign in (password sign-up).
+    private boolean emailVerificationRequired = false;
+
     public AuthResponse(String accessToken, String refreshToken, Long expiresIn) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
@@ -30,6 +34,12 @@ public class AuthResponse {
         AuthResponse response = new AuthResponse();
         response.mfaRequired = true;
         response.mfaToken = mfaToken;
+        return response;
+    }
+
+    public static AuthResponse emailVerificationRequired() {
+        AuthResponse response = new AuthResponse();
+        response.emailVerificationRequired = true;
         return response;
     }
 }

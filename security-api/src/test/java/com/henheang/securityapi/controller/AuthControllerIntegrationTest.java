@@ -115,15 +115,42 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    @Test
-    void signup_createsUserAndReturnsTokens() throws Exception {
-        RequestPostProcessor ip = uniqueClientIp();
+    // Signs up with a password, verifies the email and signs in, returning the
+    // login response - sign-up alone issues no tokens.
+    private String signUpAndSignIn(String email, RequestPostProcessor ip) throws Exception {
         Map<String, String> signUpRequest =
                 Map.of(
                         "name",
                         "Jane Doe",
                         "email",
-                        uniqueEmail(),
+                        email,
+                        "password",
+                        "Password123!",
+                        "username",
+                        uniqueUsername());
+        mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip)).andExpect(status().isOk());
+        verifyEmailFor(email, ip);
+        return mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/login",
+                                Map.of("identifier", email, "password", "Password123!"),
+                                ip))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+    }
+
+    @Test
+    void signup_createsUserButIssuesNoTokensUntilTheEmailIsVerified() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        Map<String, String> signUpRequest =
+                Map.of(
+                        "name",
+                        "Jane Doe",
+                        "email",
+                        email,
                         "password",
                         "Password123!",
                         "username",
@@ -131,9 +158,58 @@ class AuthControllerIntegrationTest {
 
         mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.accessToken", notNullValue()))
-                .andExpect(jsonPath("$.data.refreshToken", notNullValue()))
-                .andExpect(jsonPath("$.data.tokenType").value("Bearer"));
+                .andExpect(jsonPath("$.data.emailVerificationRequired").value(true))
+                .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist());
+        assertThat(userRepository.findByEmail(email)).isPresent();
+    }
+
+    @Test
+    void tokens_stopWorkingOnceTheEmailIsNoLongerVerified() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        String loginBody = signUpAndSignIn(email, ip);
+        String accessToken = readJsonField(loginBody, "accessToken");
+
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(false);
+        userRepository.save(user);
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        post("/api/auth/supabase-token")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/refresh",
+                                Map.of("refreshToken", readJsonField(loginBody, "refreshToken")),
+                                ip))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // A lock only throttles password guessing: it must not let whoever is
+    // guessing sign the real owner out of a session they already have.
+    @Test
+    void accessToken_keepsWorkingWhileTheAccountIsTemporarilyLocked() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        String accessToken = readJsonField(signUpAndSignIn(email, ip), "accessToken");
+
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setLockedUntil(java.time.Instant.now().plusSeconds(900));
+        userRepository.save(user);
+
+        mockMvc.perform(
+                        get("/api/auth/user")
+                                .with(ip)
+                                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -237,24 +313,8 @@ class AuthControllerIntegrationTest {
     @Test
     void refresh_rotatesRefreshTokenAndRejectsThePreviousOne() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
-        String email = uniqueEmail();
-        Map<String, String> signUpRequest =
-                Map.of(
-                        "name",
-                        "Jane Doe",
-                        "email",
-                        email,
-                        "password",
-                        "Password123!",
-                        "username",
-                        uniqueUsername());
-        String signUpBody =
-                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String originalRefreshToken = readJsonField(signUpBody, "refreshToken");
+        String originalRefreshToken =
+                readJsonField(signUpAndSignIn(uniqueEmail(), ip), "refreshToken");
 
         Map<String, String> refreshRequest = Map.of("refreshToken", originalRefreshToken);
         String refreshBody =
@@ -277,25 +337,9 @@ class AuthControllerIntegrationTest {
     @Test
     void logout_revokesRefreshTokenAndBlacklistsAccessToken() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
-        String email = uniqueEmail();
-        Map<String, String> signUpRequest =
-                Map.of(
-                        "name",
-                        "Jane Doe",
-                        "email",
-                        email,
-                        "password",
-                        "Password123!",
-                        "username",
-                        uniqueUsername());
-        String signUpBody =
-                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String accessToken = readJsonField(signUpBody, "accessToken");
-        String refreshToken = readJsonField(signUpBody, "refreshToken");
+        String loginBody = signUpAndSignIn(uniqueEmail(), ip);
+        String accessToken = readJsonField(loginBody, "accessToken");
+        String refreshToken = readJsonField(loginBody, "refreshToken");
 
         // Access token works before logout.
         mockMvc.perform(
@@ -501,23 +545,7 @@ class AuthControllerIntegrationTest {
     @Test
     void supabaseToken_whenBridgeNotConfigured_returns503() throws Exception {
         RequestPostProcessor ip = uniqueClientIp();
-        Map<String, String> signUpRequest =
-                Map.of(
-                        "name",
-                        "Jane Doe",
-                        "email",
-                        uniqueEmail(),
-                        "password",
-                        "Password123!",
-                        "username",
-                        uniqueUsername());
-        String signUpBody =
-                mockMvc.perform(jsonPost("/api/auth/signup", signUpRequest, ip))
-                        .andExpect(status().isOk())
-                        .andReturn()
-                        .getResponse()
-                        .getContentAsString();
-        String accessToken = readJsonField(signUpBody, "accessToken");
+        String accessToken = readJsonField(signUpAndSignIn(uniqueEmail(), ip), "accessToken");
 
         // The test profile sets no SUPABASE_* values, so the bridge stays off.
         mockMvc.perform(
