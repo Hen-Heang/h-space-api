@@ -122,6 +122,14 @@ cache:
 
 server:
   port: ${SERVER_PORT:8080}
+  # Behind a reverse proxy (Caddy/nginx), Tomcat's RemoteIpValve turns
+  # X-Forwarded-For/-Proto into getRemoteAddr()/isSecure() - but only for
+  # requests whose direct peer is a trusted proxy, and it reads the header
+  # right-to-left, so a client can't spoof its IP by prepending entries.
+  # Trusted = Tomcat's default private/loopback ranges (127/8, 10/8,
+  # 172.16/12, 192.168/16, ...), which covers a proxy on the same host or
+  # Docker network. Override with server.tomcat.remoteip.internal-proxies.
+  forward-headers-strategy: native
 
 # Only /actuator/health is exposed (permitAll in WebSecurityConfig) - used by
 # the Docker/Compose healthcheck. Details stay hidden from anonymous callers.

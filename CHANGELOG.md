@@ -62,3 +62,9 @@ project has no released versions yet, so everything lives under
   committed with a real-looking secret) is no longer tracked by git. See
   [SECURITY.md](SECURITY.md) for the historical-exposure note and rotation
   guidance.
+- Rate limiting and audit/login-history IPs no longer trust the first
+  `X-Forwarded-For` entry, which the caller controls — sending a new value
+  per request bypassed the per-IP limit on login, MFA and email-code
+  endpoints and forged the logged IP. The client IP now comes from Tomcat's
+  `RemoteIpValve` (`server.forward-headers-strategy: native`), which only
+  honours the header from a trusted (private/loopback) proxy.

@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -79,11 +78,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    // Never read X-Forwarded-For here: its first entry is whatever the client
+    // sent, so trusting it lets one caller rotate through unlimited buckets.
+    // Behind a reverse proxy, Tomcat's RemoteIpValve (server.forward-headers-
+    // strategy: native) already resolves the real client into getRemoteAddr(),
+    // and only when the request came from a trusted proxy.
     private String clientKey(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
         return request.getRemoteAddr();
     }
 }
