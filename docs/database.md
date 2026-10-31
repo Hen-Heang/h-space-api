@@ -23,3 +23,8 @@
   for convenience; `prod` has no fallback and fails fast at startup if
   `JWT_SECRET` isn't set — externalize via env var for anything beyond local,
   never commit a real secret.
+- Production uses an external managed PostgreSQL (Neon or Supabase) through
+  `DB_URL`; `application-prod.yml` requires TLS (`sslmode=require` by
+  default) and sizes the Hikari pool at 5 / min-idle 1. Flyway migrates
+  through that pool at startup, so `DB_URL` must be a session endpoint, not
+  a transaction-mode pooler — see `docs/deploy-vps.md` §1.

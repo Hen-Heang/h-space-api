@@ -28,14 +28,25 @@ project has no released versions yet, so everything lives under
 - CI `image` job: builds the `security-api` image and smoke-tests it against
   Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
   (`latest`, `sha-<commit>`, version tags) and records the verified digest.
-- `deploy/`: production stack for a single VPS — `compose.prod.yaml` runs
-  the CI image (pinned by digest) behind Caddy for automatic HTTPS, with
-  only Caddy publishing ports, the `prod` profile, no default passwords,
-  capped container logs, and a `backup` service taking a daily `pg_dump`
-  (14-day retention). `restore.sh` restores a dump after taking a safety
-  backup. Step-by-step runbook: `docs/deploy-vps.md`.
+- `deploy/`: production stack for one small VPS (1 vCPU / 2 GB) —
+  `compose.prod.yaml` runs the CI image (pinned by digest) behind Caddy for
+  automatic HTTPS against an external managed PostgreSQL (Neon or
+  Supabase), with only Caddy publishing ports, the `prod` profile, no
+  default secrets, a 768 MB API memory limit and capped container logs.
+  Step-by-step runbook (endpoint choice, migrations, backups, rollback,
+  monitoring): `docs/deploy-vps.md`.
 
 ### Changed
+- `prod` profile: Hikari pool of 5 with min-idle 1 (`DB_POOL_MAX_SIZE`,
+  `DB_POOL_MIN_IDLE`), and TLS to the database required by default
+  (`sslmode=require`).
+- Image: heap sized at 60% of the container limit (was 75%) with a metaspace
+  cap and exit on OOM; the healthcheck calls `/actuator/health/liveness`, so
+  it no longer queries the database (and keeps a scale-to-zero Neon
+  database asleep), and `wget` is installed if the base image lacks it.
+- CI's image smoke check boots the `prod` profile under a 768 MB limit
+  against a TLS-only Postgres, and checks the container healthcheck passes
+  and every JDBC session is encrypted.
 - Renamed the shared library module `common-api` to `api-core` and its
   package `com.henheang.commonapi` to `com.henheang.apicore`.
 - Deduplicated per-module `build.gradle` files — group/version/plugins/
