@@ -1,4 +1,5 @@
-# Production stack for a single VPS: Caddy (HTTPS) -> security-api -> PostgreSQL.
+# Production stack for one small VPS: Caddy (HTTPS) -> security-api ->
+# external PostgreSQL (Neon or Supabase). Runbook: docs/deploy-vps.md.
 #
 # On the server, from this directory:
 #   cp prod.env.example .env && chmod 600 .env   # then fill in every value
@@ -7,16 +8,16 @@
 # Differences from ../compose.yaml (local dev):
 # - runs the image CI built and smoke-checked (API_IMAGE, pinned by digest)
 #   instead of building from source on the server;
-# - prod profile, and no default passwords - a missing value stops
+# - no database container: DB_URL points at the managed database, and the
+#   prod profile forces TLS to it;
+# - prod profile, and no default secrets - a missing value stops
 #   `docker compose up` with an error instead of starting insecurely;
-# - only Caddy publishes ports (80/443). Postgres and the API are reachable
-#   only on the stack's private network, so the API's trusted-proxy check
-#   (server.forward-headers-strategy in application.yml) can only ever see
-#   Caddy as the direct peer.
+# - only Caddy publishes ports (80/443). The API is reachable only on this
+#   stack's private network, so the X-Forwarded-For it trusts can only come
+#   from Caddy;
+# - container logs are capped so they can't fill the disk.
 name: h-space
 
-# Docker keeps container logs forever by default, which eventually fills a
-# small VPS disk. Cap each service at 3 x 10 MB.
 x-logging: &logging
   driver: json-file
   options:
@@ -24,24 +25,6 @@ x-logging: &logging
     max-file: "3"
 
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: jwt_auth
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-    volumes:
-      # All account data lives here. `docker compose down` keeps it;
-      # `down -v` deletes it.
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d jwt_auth"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    logging: *logging
-    restart: unless-stopped
-
   security-api:
     # e.g. ghcr.io/hen-heang/h-space-api/security-api@sha256:<digest> - CI's
     # run summary prints it. To roll back, set the previous digest and run
@@ -52,40 +35,19 @@ services:
         required: true
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:postgresql://postgres:5432/jwt_auth
-      DB_USERNAME: postgres
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       # Already passed via env_file; repeated here only so a missing value
       # fails at `docker compose up` rather than as a Spring startup error.
+      DB_URL: ${DB_URL:?set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY in .env}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in .env}
-    depends_on:
-      # Flyway migrates on startup and fails if the DB isn't ready yet.
-      postgres:
-        condition: service_healthy
-    mem_limit: 768m
-    logging: *logging
-    restart: unless-stopped
-
-  # Daily pg_dump into ./backups (see backup.sh; restore with restore.sh).
-  # These files sit on the same disk as the database - copy them off the
-  # server regularly, or a dead disk takes the backups with it.
-  backup:
-    image: postgres:16
-    entrypoint: ["sh", "/scripts/backup.sh"]
-    environment:
-      PGHOST: postgres
-      PGUSER: postgres
-      PGDATABASE: jwt_auth
-      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
-    volumes:
-      - ./backups:/backups
-      - ./backup.sh:/scripts/backup.sh:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # The JVM sizes its heap at 60% of this (see Dockerfile), leaving the rest
+    # for non-heap memory. 768m leaves ~1 GB of a 2 GB VPS for the OS, Docker
+    # and Caddy.
+    mem_limit: ${API_MEM_LIMIT:-768m}
+    # Healthcheck comes from the image (/actuator/health/liveness).
     logging: *logging
     restart: unless-stopped
 
@@ -107,10 +69,10 @@ services:
     depends_on:
       security-api:
         condition: service_healthy
+    mem_limit: 256m
     logging: *logging
     restart: unless-stopped
 
 volumes:
-  postgres-data:
   caddy-data:
   caddy-config:

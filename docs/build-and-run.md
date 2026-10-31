@@ -61,50 +61,35 @@ package's visibility in GitHub (Profile → Packages → security-api).
 
 ### Production on a VPS (`deploy/`)
 
-Full step-by-step runbook (server setup, first deploy, updates, rollback,
-secrets, troubleshooting): `docs/deploy-vps.md`.
+Full step-by-step runbook (database endpoint choice, server setup, first
+deploy, migrations and backups, updates, rollback, monitoring,
+troubleshooting): `docs/deploy-vps.md`.
 
 `deploy/compose.prod.yaml` runs the CI-built image behind Caddy, which
-obtains and renews the HTTPS certificate itself. Copy `deploy/` to the
-server, then:
+obtains and renews the HTTPS certificate itself. There is no database
+container: `DB_URL` points at a managed PostgreSQL (Neon or Supabase).
+Copy `deploy/` to the server, then:
 
 ```bash
 cp prod.env.example .env && chmod 600 .env   # fill in every value
 docker compose -f compose.prod.yaml up -d
 ```
 
-- Only Caddy publishes ports (80/443); Postgres and the API stay on the
-  stack's private network. Don't add a `ports:` entry to `security-api` —
-  the API trusts `X-Forwarded-For` from private addresses, so it must only
-  be reachable through Caddy.
+- Only Caddy publishes ports (80/443); the API stays on the stack's
+  private network. Don't add a `ports:` entry to `security-api` — the API
+  trusts `X-Forwarded-For` from private addresses, so it must only be
+  reachable through Caddy.
 - Runs the `prod` profile; any missing required value (`API_IMAGE`,
-  `POSTGRES_PASSWORD`, `JWT_SECRET`, ...) stops `docker compose up` with an
-  error naming it.
+  `DB_URL`, `JWT_SECRET`, ...) stops `docker compose up` with an error
+  naming it.
+- `prod` requires TLS to the database (`sslmode=require` unless `DB_URL`
+  sets a stricter mode) and uses a Hikari pool of 5 / min-idle 1
+  (`DB_POOL_MAX_SIZE` / `DB_POOL_MIN_IDLE`). Flyway migrates through the
+  same pool at startup, so `DB_URL` must be a session endpoint (Neon
+  direct, Supabase session pooler) — not a transaction pooler.
+- The API container is limited to 768 MB (`API_MEM_LIMIT`); the image sizes
+  the heap at 60% of the limit. Logs are capped at 3 × 10 MB per container.
 - Set `API_IMAGE` to the `image@sha256:...` digest from CI. To roll back,
   set the previous digest and run `up -d` again.
-
-### Backups and restore (`deploy/`)
-
-The `backup` service in `compose.prod.yaml` runs `deploy/backup.sh`: a
-`pg_dump` at startup and then every 24 h into `deploy/backups/`
-(owner-only files, git-ignored), deleting dumps older than
-`BACKUP_KEEP_DAYS` (default 14). A failed dump is logged
-(`docker compose -f compose.prod.yaml logs backup`) and leaves no file.
-
-```bash
-# backup now (e.g. before deploying a new image)
-docker compose -f compose.prod.yaml exec backup sh /scripts/backup.sh once
-
-# restore: stops the API, saves a safety dump, recreates the DB, starts the API
-./restore.sh backups/jwt_auth-<timestamp>.dump
-```
-
-- **Copy backups off the server.** They sit on the same disk as the
-  database. At minimum, pull them to another machine regularly:
-  `scp -r <user>@<server>:<path>/deploy/backups ./h-space-backups`.
-- **Keep `MFA_ENCRYPTION_KEY` (and the rest of `.env`) somewhere safe
-  outside the server**, e.g. a password manager. The dump holds TOTP secrets
-  encrypted with that key; restoring without it leaves MFA users unable to
-  sign in.
-- **Rehearse a restore** now and then (e.g. on a local copy of a dump) —
-  an untested backup isn't one.
+- Database backups are the provider's job plus your own `pg_dump` before
+  migrations — see `docs/deploy-vps.md` §8.
