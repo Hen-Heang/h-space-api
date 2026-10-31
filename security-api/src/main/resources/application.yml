@@ -131,8 +131,9 @@ server:
   # Docker network. Override with server.tomcat.remoteip.internal-proxies.
   forward-headers-strategy: native
 
-# Only /actuator/health is exposed (permitAll in WebSecurityConfig) - used by
-# the Docker/Compose healthcheck. Details stay hidden from anonymous callers.
+# Only /actuator/health (and its liveness/readiness groups) is exposed
+# (permitAll in WebSecurityConfig); the image's HEALTHCHECK uses liveness.
+# Details stay hidden from anonymous callers.
 # Mail is excluded so an unreachable/placeholder SMTP server doesn't mark the
 # whole app DOWN; the DB check stays in.
 management:

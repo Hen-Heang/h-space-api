@@ -26,6 +26,12 @@ WORKDIR /app
 
 RUN groupadd --system app && useradd --system --gid app --no-create-home app
 
+# HEALTHCHECK below needs wget. The base image ships it today, but it's not
+# part of its contract (curl was dropped), so install it if it's ever missing.
+RUN command -v wget >/dev/null \
+ || (apt-get update && apt-get install -y --no-install-recommends wget \
+     && rm -rf /var/lib/apt/lists/*)
+
 COPY --from=build /workspace/extracted/dependencies/ ./
 COPY --from=build /workspace/extracted/spring-boot-loader/ ./
 COPY --from=build /workspace/extracted/snapshot-dependencies/ ./
@@ -33,12 +39,18 @@ COPY --from=build /workspace/extracted/application/ ./
 
 USER app
 
-# Size the heap from the container memory limit instead of host RAM.
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
+# Size the heap from the container memory limit instead of host RAM, leaving
+# ~40% for metaspace, code cache, thread stacks and native buffers (a 768 MB
+# limit gives a ~460 MB heap). Exit on OOM so the restart policy brings up a
+# fresh JVM instead of leaving a broken one running.
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError"
 
 EXPOSE 8080
 
+# Liveness, not /actuator/health: it doesn't query the database, so a DB
+# outage doesn't get the container restarted, and a scale-to-zero database
+# (Neon) isn't kept awake by a check every 10 seconds.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=5 \
-    CMD wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/actuator/health/liveness || exit 1
 
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]

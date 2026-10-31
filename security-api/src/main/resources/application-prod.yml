@@ -4,7 +4,14 @@ spring:
   datasource:
     hikari:
       connection-timeout: 20000
-      maximum-pool-size: 20
+      # Sized for one small VPS and a managed database's connection limit.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      # TLS to the database even when DB_URL doesn't say so. A sslmode in
+      # DB_URL takes precedence: use it to go stricter (verify-full), never
+      # weaker. Flyway uses this same pool.
+      data-source-properties:
+        sslmode: require
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
