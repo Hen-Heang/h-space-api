@@ -112,13 +112,23 @@ Caddy can't get a certificate until this works.
 
 ## 3. Prepare the server (once)
 
-Log in as root with the key the provider installed **(laptop)**:
+**Get key access first.** Check the provider's email for the username:
+many Ubuntu images log in as `ubuntu` (with `sudo`) rather than `root`. If
+you got a password instead of adding your key at order time, install the key
+**(laptop)**:
 
 ```bash
-ssh root@<server-ip>
+ssh-copy-id -i ~/.ssh/id_ed25519.pub <user>@<server-ip>   # asks for the password once
+ssh <user>@<server-ip>                                    # must not ask for a password now
 ```
 
-**Create your own user** instead of working as root:
+If the password is refused even though it's right, the provider may force a
+password change on first login, which `ssh-copy-id` can't answer: log in
+once with plain `ssh` (or the provider's web console), change it, retry.
+
+**If the provider already gave you a sudo user** such as `ubuntu`, use it
+and skip creating `deploy` — read `deploy` as that user in the rest of this
+runbook. Otherwise, logged in as root, **create your own user**:
 
 ```bash
 adduser deploy                        # pick a strong password (used for sudo)
@@ -132,15 +142,22 @@ chmod 700 /home/deploy/.ssh && chmod 600 /home/deploy/.ssh/authorized_keys
 Open a **second terminal** and check `ssh deploy@<server-ip>` works before
 continuing — if it doesn't, you can still fix it from the first one.
 
-**Turn off password and root SSH logins** (keys only), as `deploy`:
+**Turn off password and root SSH logins** (keys only), as `deploy`. The file
+name must sort **before** `50-cloud-init.conf`, which many images ship with
+`PasswordAuthentication yes` — sshd keeps the first value it reads:
 
 ```bash
-sudo tee /etc/ssh/sshd_config.d/99-hardening.conf >/dev/null <<'EOF'
+sudo tee /etc/ssh/sshd_config.d/01-hardening.conf >/dev/null <<'EOF'
 PasswordAuthentication no
+KbdInteractiveAuthentication no
 PermitRootLogin no
 EOF
-sudo systemctl restart ssh
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin) '   # both "no"
 ```
+
+Keep this session open and check from a **second terminal** that
+`ssh deploy@<server-ip>` still works before logging out.
 
 **Firewall** — allow SSH *first*, or you'll lock yourself out:
 
@@ -158,7 +175,8 @@ Docker bypasses `ufw` for ports a container publishes. That's why
 must only be reachable through Caddy.
 
 **Swap** — a safety net so a memory spike slows the server down instead of
-the kernel killing a process:
+the kernel killing a process. Many images already have one — check with
+`swapon --show` and skip this if it lists anything:
 
 ```bash
 sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile
@@ -169,9 +187,10 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 **Automatic security updates**:
 
 ```bash
-sudo apt update && sudo apt upgrade -y
+sudo apt update && sudo apt full-upgrade -y   # full-: plain upgrade holds back new kernels
 sudo apt install -y unattended-upgrades
 sudo dpkg-reconfigure -plow unattended-upgrades    # answer "Yes"
+[ -f /var/run/reboot-required ] && sudo reboot      # nothing runs yet - best time to reboot
 ```
 
 **Install Docker** (official script; see
