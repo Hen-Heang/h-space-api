@@ -1,65 +1,13 @@
-# Moving H-Space data from Supabase to Spring
+# Draft area spec: Notes
 
-Status: **draft, not started.** Sign-in already runs on `security-api`; every
-feature record is still in Supabase under RLS, reached through the temporary
-bridge (`POST /api/auth/supabase-token`, see `docs/security-api-state.md`).
-This plan moves the data one area at a time. The bridge stays until the last
-area has moved, then is deleted.
+A pre-filled [per-area checklist](spring-migration-plan.md#per-area-checklist)
+for moving Notes (`kori_notes`) into `hub-api` — part of **Phase 2** of
+`docs/spring-migration-plan.md`, which is the plan of record. Written
+2026-10-30 as a candidate pilot; the Inbox became the pilot instead. Re-check
+it against the live schema and the Inbox's conventions (paths
+`/api/hub/<area>`, `db/hub-migration`, data-source flag) before building.
 
-## Where things stand (2026-10-30)
-
-- The web app (`E:\Fullstack\h-space\apps\web`) queries Supabase directly from
-  39 files across 25+ tables. Heaviest: `kori_corrections`, `tasks`,
-  `kori_vocab_cards`, `kori_profiles`, `goals`.
-- Supabase also runs scheduled SQL jobs that read these tables:
-  `universal_reminders` (checks the linked task/goal/note still exists),
-  holiday and weather alerts (read/update `kori_profiles`), Telegram sends.
-  A table can't move until whatever reads it inside Supabase has a
-  replacement.
-- Next.js server routes (`app/api/ai/*`, `lib/server/memory-retrieval.ts`)
-  query Supabase with the caller's bridged token and rely on RLS.
-- `lib/database.types.ts` is stale (missing columns added by later
-  migrations) — use the SQL migrations as the schema reference.
-- Spring has no data endpoints yet: `open-api` is a sample, `finance-api` an
-  empty scaffold.
-
-## Order
-
-| # | Area | Why this position |
-|---|---|---|
-| 1 | **Notes** (`kori_notes`) | Pilot. One frontend module (`lib/api/notes.ts`), one server reader, one reminder check; no table depends on it. Proves the whole path (schema, API, auth, import, cutover, rollback) at low risk. |
-| 2 | **Profile** (`kori_profiles`) | Sign-in writes it (`ensureProfile`), so moving it takes the bridge off the sign-in path. Needs the holiday/weather/push jobs moved first. |
-| 3 | **Goals + tasks + phases** (`goals`, `tasks`, `goal_plan_phases`, …) | Core of the product but the most linked (key results, schedule rules, reminders). Moves together as one area. |
-| 4 | **Reminders** (`kori_reminders` + its scheduled job) | Needs a Spring scheduler; after 3, since it checks goal/task existence. |
-| 5+ | Korean study data, inbox, journal, … | One area at a time, same template. Finance follows `docs/finance-api.md`. |
-
-H-Vault isn't in this list: it has no Supabase data (its table was never
-created), so it's built directly on Spring. Design and gates:
-`docs/vault-design.md`.
-
-Each area gets its own section below, filled in from the template before any
-code is written.
-
-## Where the code goes
-
-**Proposal:** a new sibling module **`hub-api`** (port 8084, `/api/hub/**`),
-depending on `security-api` exactly like `finance-api`:
-
-```
-api-core <- security-api <- open-api / finance-api / hub-api
-```
-
-It holds the personal-hub domains (notes, profile, goals, tasks, reminders).
-`open-api` stays a sample; finance stays separate. Same Postgres as
-`security-api`, so `user_id` can reference `users(id)`; Flyway is the schema
-authority, `ddl-auto=validate`, tests in their own schema (`hub_api_test`)
-like `finance-api`.
-
-*Open decision:* new `hub-api` vs. one module per area. One module is less
-deployment and config to run on a single small server; split later if an
-area grows.
-
-## Area 1 — Notes (pilot)
+## Notes
 
 ### Acceptance criteria
 
@@ -77,7 +25,7 @@ After cutover `hub-api` is the only source of truth for notes. The Supabase
 table is made read-only at cutover and kept, untouched, for 30 days as the
 rollback copy, then dropped by a Supabase migration.
 
-### Schema (`hub-api` Flyway `V1__notes.sql`)
+### Schema (`hub-api` Flyway `V{next}__notes.sql`)
 
 Same columns as `kori_notes` today (base table + `20260726130000`
 additions), named `notes`:
@@ -186,19 +134,6 @@ and 5 is acceptable; announce nothing beyond that.
 - Search: matches title/description/content, capped at 50, scoped to user.
 - Import: dry-run writes nothing; re-run is idempotent; orphan `user_id` is
   reported; checksums match.
-- Migration: `V1__notes.sql` applies to an empty schema and `validate` passes.
+- Migration: `V{next}__notes.sql` applies to an empty schema and `validate` passes.
 - Web app: `lib/api/notes.test.ts` covers both backends with the same
   expectations.
-
-## Template for the next areas
-
-Copy this for each area before writing code: acceptance criteria, ownership,
-schema, API contract, authorization, user mapping, data copy, other consumers
-(including Supabase jobs and server routes), cutover, rollback, tests.
-
-## Open decisions
-
-1. `hub-api` as one module for the personal-hub areas, or one module per area.
-2. Note reminders during the pilot: treat as owned, or cancel from Spring.
-3. Where `hub-api` runs in production (same host/container as
-   `security-api`?) — ties into the open deployment choice in `CLAUDE.md`.

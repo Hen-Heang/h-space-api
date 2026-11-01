@@ -8,6 +8,11 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- Quick Capture Inbox API in `hub-api` (`/api/hub/inbox-items`, migration
+  `V2__inbox_items.sql`), the pilot area of `docs/spring-migration-plan.md`.
+  Originally built as a separate `hspace-api` module (V100 in the shared
+  Flyway history); folded into `hub-api` so there's one product module and
+  its migrations can't block `security-api`'s. Not cut over yet.
 - hub-api deployment: the `Dockerfile` builds any module (`MODULE` build
   arg, port 8080 in every image); CI builds, smoke-checks and publishes a
   `hub-api` image next to `security-api`; `deploy/compose.prod.yaml` runs it

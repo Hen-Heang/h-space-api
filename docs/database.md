@@ -20,7 +20,7 @@
 - `finance-api` tests use Flyway + `validate` (like `security-api`), in their
   own schema `finance_api_test`.
 - `hub-api` has its **own** migrations (`hub-api/src/main/resources/db/hub-migration/`,
-  currently `V1__vault.sql`) and history table `flyway_hub_schema_history`, so
+  currently `V1__vault.sql`, `V2__inbox_items.sql`) and history table `flyway_hub_schema_history`, so
   its version numbers never collide with `security-api`'s. Its tables live in
   the same database and may reference `users(id)`. Locally and in tests it
   also runs `security-api`'s migrations first

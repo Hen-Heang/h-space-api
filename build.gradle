@@ -209,7 +209,7 @@ project(':finance-api') {
 }
 
 // Configure hub-api module (personal-hub data moving off Supabase, starting
-// with H-Vault; see docs/vault-design.md and docs/data-migration-plan.md)
+// with H-Vault; see docs/vault-design.md and docs/spring-migration-plan.md)
 project(':hub-api') {
     dependencies {
         implementation project(':api-core')
