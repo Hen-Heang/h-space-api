@@ -59,6 +59,12 @@ project has no released versions yet, so everything lives under
   monitoring): `docs/deploy-vps.md`.
 
 ### Changed
+- Docs: H-Vault status brought up to date — hub-api deployed and the vault
+  live in production since 2026-11-01, ahead of the independent review, which
+  is still open (`docs/vault-design.md` §1, §10, §13; `CLAUDE.md` gate note).
+  `README.md` and `.claude/rules/architecture.md` list `hub-api`;
+  `docs/deploy-vps.md` §15 now says to `caddy reload` after a `Caddyfile`
+  change.
 - `prod` profile: Hikari pool of 5 with min-idle 1 (`DB_POOL_MAX_SIZE`,
   `DB_POOL_MIN_IDLE`), and TLS to the database required by default
   (`sslmode=require`).

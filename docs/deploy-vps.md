@@ -467,10 +467,11 @@ profile the stack is exactly security-api + Caddy as before. It shares the
 database and `JWT_SECRET` with security-api and runs only its own migrations
 (`db/hub-migration`, history table `flyway_hub_schema_history`).
 
-> Deploying it doesn't make the vault usable for real secrets: the web app
-> keeps `/vault` in demo mode until `NEXT_PUBLIC_FEATURE_VAULT_LIVE` is
-> turned on, which waits for the independent security review
-> (`docs/vault-design.md` §9–10).
+> Deploying it doesn't by itself switch the web app over: `/vault` stays in
+> browser-local demo mode until `NEXT_PUBLIC_FEATURE_VAULT_LIVE` is turned on
+> in Vercel. The plan was to wait for the independent security review
+> (`docs/vault-design.md` §9–10); in production the flag was turned on
+> 2026-11-01, before the review, so the review is still open.
 
 **Same release as security-api.** hub-api contains security-api's code and
 checks its tables at startup, but leaves migrating them to security-api. So
@@ -497,9 +498,14 @@ start security-api on it first — compose does that via `depends_on`.
    docker compose -f compose.prod.yaml ps          # security-api, hub-api, caddy: healthy/up
    ```
 
-   Caddy reads its config at start; if it was already running, the `up -d`
-   recreates it because the mounted `Caddyfile` changed — if not, run
-   `docker compose -f compose.prod.yaml restart caddy`.
+   Caddy reads its config at start, and `up -d` does **not** always recreate
+   it when only the mounted `Caddyfile` changed (on the 2026-11-01 deploy it
+   kept the old routes, so `/api/hub/*` still went to security-api). Reload
+   it explicitly:
+
+   ```bash
+   docker exec h-space-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+   ```
 5. **Verify** (no account needed):
 
    ```bash
@@ -517,7 +523,9 @@ then `up -d` (§9). **Rolling back:** put both previous digests back. **Turning
 it off:** remove `COMPOSE_PROFILES=hub` from `.env` and run
 `docker compose -f compose.prod.yaml --profile hub rm -sf hub-api`;
 `/api/hub/*` then answers 502 and nothing else changes. The vault
-tables stay in the database.
+tables stay in the database. While the web app's vault flag is on, stopping
+hub-api breaks `/vault` (and the Inbox once it's cut over) — turn the flag off
+in Vercel and redeploy first if the outage will be more than brief.
 
 Memory on the 2 GB server (measured just after start; both settle lower
 once idle): security-api ~400 MB (limit 768 MB), hub-api ~380 MB (limit

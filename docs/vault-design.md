@@ -1,22 +1,26 @@
 # H-Vault on Spring + Neon — design
 
-Status: **design agreed (D1–D5 answered 2026-11-01). Phase 1 (backend) built
-in `hub-api`, not deployed; no tables in production.** Per the root `CLAUDE.md` vault gate, no real password is stored
-until an independent review of the cryptography (section 9) is done.
+Status: **live in production since 2026-11-01, before the independent
+security review.** Phases 1, 2 and the deploy part of 4 are done; the owner
+turned the flag on (phase 5) ahead of the review (phase 3) — see section 10.
+The review in section 9 is still required and still open.
 
 ## 1. Where things stand (2026-11-01)
 
-- **Frontend** (`h-space/apps/web`, route `/vault`): the UI is finished and
-  tested. It runs on a **browser-local demo adapter**; the live adapter targets
-  a Supabase table `kori_vault_accounts` behind `NEXT_PUBLIC_FEATURE_VAULT_LIVE`.
-  Design: `apps/web/docs/h-vault.md`.
-- **Supabase**: `kori_vault_accounts` was **never created**
-  (`supabase/migrations/20261023000000_vault_accounts.sql` is unapplied).
-- **Neon / Spring**: no vault table, no endpoints.
+- **Backend**: `hub-api` runs on the VPS behind Caddy (`/api/hub/*`,
+  `docs/deploy-vps.md` §15). Tables `vault_keysets` and `vault_items` exist in
+  the production Neon database.
+- **Frontend** (`h-space/apps/web`, route `/vault`): v2 crypto and the
+  `springVault` backend, with `NEXT_PUBLIC_FEATURE_VAULT_LIVE=true` in Vercel
+  Production and Preview. Design: `apps/web/docs/h-vault.md`.
+- **First real data**: the owner's vault was set up and a CSV imported on
+  2026-11-01 — one keyset and 79 items, every item stored as a `v2.`
+  envelope.
+- **Supabase**: never held vault data (`kori_vault_accounts` was never
+  created), so nothing was migrated. The vault doesn't touch Supabase.
 
-So there is **no vault data anywhere to migrate.** That makes the vault the
-easiest area to build directly on Spring: no import, no freeze, no Supabase
-jobs to replace, and no bridge in the path. It never touches Supabase.
+Before this went live there was no vault data anywhere: no import, no
+freeze, no Supabase jobs to replace, and no bridge in the path.
 
 ## 2. Goals and non-goals
 
@@ -242,6 +246,19 @@ Findings are fixed and re-checked before the live flag goes on.
 | 4 | Deploy to the VPS; end-to-end test with fictional entries; restore drill from a Neon backup | No |
 | 5 | Turn the flag on; enter real passwords | **Yes** |
 
+**What actually happened (2026-11-01).** Phases 0–2 were done in order, then
+hub-api was deployed (the deploy half of phase 4). The owner then chose to
+turn the flag on in Production and import real accounts **before** phase 3.
+Still outstanding, in this order:
+
+1. Phase 3 — the independent review (section 9). Fix findings; if a finding
+   affects the stored format, plan a re-encryption, not just a code change.
+2. Phase 4 — the restore drill: restore a Neon backup to a branch and unlock
+   the vault from it.
+
+Until both are done, treat the vault as unreviewed: don't advertise it as
+"zero-knowledge", and keep the rollback below ready.
+
 **Rollback**: turn the flag off and the UI returns to demo mode. Data in Neon
 stays encrypted and untouched; nothing to reconcile, because nothing else
 writes vault data.
@@ -276,7 +293,14 @@ writes vault data.
 - **Phase 1 (backend), done 2026-11-01**: `hub-api` module with Flyway
   `V1__vault.sql`, `VaultController` → `VaultService` → repositories, MFA
   check, audit events, cleanup task, and the backend tests in section 11
-  (`VaultControllerIntegrationTest`). Not deployed.
-- **Next, phase 2 (frontend)**: v2 crypto with the key hierarchy and recovery
-  key, setup/unlock/recovery/reset screens, a `springVaultAdapter` for these
-  endpoints behind a flag, and a Content-Security-Policy.
+  (`VaultControllerIntegrationTest`).
+- **Phase 2 (frontend), done 2026-11-01** (h-space PR #41): v2 crypto with
+  the key hierarchy and recovery key, setup/unlock/recovery/reset screens,
+  the `springVault` backend behind `NEXT_PUBLIC_FEATURE_VAULT_LIVE`, and a
+  Content-Security-Policy (`lib/csp.ts`).
+- **Deploy, done 2026-11-01** (PR #18): hub-api image built by CI, run with
+  the `hub` compose profile, `/api/hub/*` routed by Caddy. Migrations created
+  `vault_keysets` and `vault_items` in Neon.
+- **Flag on in Production, 2026-11-01** — before the review (section 10).
+  The owner's first import is stored: 1 keyset, 79 `v2.` items.
+- **Open**: independent review (section 9), restore drill (phase 4).
