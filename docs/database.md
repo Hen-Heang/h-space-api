@@ -17,14 +17,22 @@
   schema (`open_api_test`, set in its `application-test.yml`) — otherwise its
   create-drop would drop `security-api`'s tables in `public` and fail the next
   `security-api` test run on a fresh database.
-- `hspace-api` adds its own migrations in
-  `hspace-api/src/main/resources/db/migration/`, numbered from **V100**
-  (`V100__inbox_items.sql`), so `security-api` keeps V1–V99. Both sets share
-  one `flyway_schema_history`: `hspace-api` runs with `out-of-order: true` so
-  a later `security-api` migration still applies after V100, and
-  `security-api` on its own ignores V100+ as future migrations. `hspace-api`
-  tests use Flyway + `validate` in their own schema `hspace_api_test`.
+- `finance-api` tests use Flyway + `validate` (like `security-api`), in their
+  own schema `finance_api_test`.
+- `hub-api` has its **own** migrations (`hub-api/src/main/resources/db/hub-migration/`,
+  currently `V1__vault.sql`, `V2__inbox_items.sql`) and history table `flyway_hub_schema_history`, so
+  its version numbers never collide with `security-api`'s. Its tables live in
+  the same database and may reference `users(id)`. Locally and in tests it
+  also runs `security-api`'s migrations first
+  (`hub.flyway.run-security-migrations`, default true); in `prod` that's off,
+  so `security-api` must have migrated before `hub-api` starts. Tests run in
+  schema `hub_api_test`. See `HubFlywayConfig`.
 - `jwt.secret` has a fallback default only in `local`/`dev`/`test` profiles
   for convenience; `prod` has no fallback and fails fast at startup if
   `JWT_SECRET` isn't set — externalize via env var for anything beyond local,
   never commit a real secret.
+- Production uses an external managed PostgreSQL (Neon or Supabase) through
+  `DB_URL`; `application-prod.yml` requires TLS (`sslmode=require` by
+  default) and sizes the Hikari pool at 5 / min-idle 1. Flyway migrates
+  through that pool at startup, so `DB_URL` must be a session endpoint, not
+  a transaction-mode pooler — see `docs/deploy-vps.md` §1.

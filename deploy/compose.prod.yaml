@@ -1,0 +1,116 @@
+# Production stack for one small VPS: Caddy (HTTPS) -> security-api (and,
+# opt-in, hub-api for /api/hub/*) -> external PostgreSQL (Neon or Supabase).
+# Runbook: docs/deploy-vps.md.
+#
+# On the server, from this directory:
+#   cp prod.env.example .env && chmod 600 .env   # then fill in every value
+#   docker compose -f compose.prod.yaml up -d
+#
+# hub-api (H-Vault's backend) only starts with the "hub" profile:
+# COMPOSE_PROFILES=hub in .env, plus HUB_IMAGE. See docs/deploy-vps.md §15.
+#
+# Differences from ../compose.yaml (local dev):
+# - runs the image CI built and smoke-checked (API_IMAGE, pinned by digest)
+#   instead of building from source on the server;
+# - no database container: DB_URL points at the managed database, and the
+#   prod profile forces TLS to it;
+# - prod profile, and no default secrets - a missing value stops
+#   `docker compose up` with an error instead of starting insecurely;
+# - only Caddy publishes ports (80/443). The API is reachable only on this
+#   stack's private network, so the X-Forwarded-For it trusts can only come
+#   from Caddy;
+# - container logs are capped so they can't fill the disk.
+name: h-space
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  security-api:
+    # e.g. ghcr.io/hen-heang/h-space-api/security-api@sha256:<digest> - CI's
+    # run summary prints it. To roll back, set the previous digest and run
+    # `up -d` again.
+    image: ${API_IMAGE:?set API_IMAGE in .env}
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Already passed via env_file; repeated here only so a missing value
+      # fails at `docker compose up` rather than as a Spring startup error.
+      DB_URL: ${DB_URL:?set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in .env}
+    # The JVM sizes its heap at 60% of this (see Dockerfile), leaving the rest
+    # for non-heap memory. 768m leaves ~1 GB of a 2 GB VPS for the OS, Docker
+    # and Caddy.
+    mem_limit: ${API_MEM_LIMIT:-768m}
+    # Healthcheck comes from the image (/actuator/health/liveness).
+    logging: *logging
+    restart: unless-stopped
+
+  # Personal-hub data (H-Vault first): /api/hub/* is routed here by Caddy.
+  # Same database, same JWT secret as security-api - it validates the tokens
+  # security-api issues. It runs only its own migrations (db/hub-migration);
+  # security-api must have migrated first, hence depends_on below.
+  hub-api:
+    profiles: ["hub"]
+    # Not `:?` like the others: compose interpolates every service, even one
+    # whose profile is off, so a required HUB_IMAGE would break the stack for
+    # anyone not running hub-api. Unset, the pull fails naming the variable.
+    image: ${HUB_IMAGE:-hub-image-not-set-in-env}
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: ${DB_URL:?set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in .env}
+      # Its own small pool, whatever DB_POOL_MAX_SIZE gives security-api.
+      DB_POOL_MAX_SIZE: ${HUB_DB_POOL_MAX_SIZE:-3}
+    depends_on:
+      security-api:
+        condition: service_healthy
+    # ~380 MB heap (60%); it carries all of security-api's code, so its
+    # non-heap needs ~200 MB too (measured ~380 MiB just after start). Limits
+    # are ceilings, not reservations: real use with security-api and Caddy is
+    # ~0.8 GB of the 2 GB VPS, with swap for peaks.
+    mem_limit: ${HUB_MEM_LIMIT:-640m}
+    logging: *logging
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Issued certificates. Keep this volume: deleting it makes Caddy request
+      # new ones, and Let's Encrypt rate-limits repeated requests.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      security-api:
+        condition: service_healthy
+    mem_limit: 256m
+    logging: *logging
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:

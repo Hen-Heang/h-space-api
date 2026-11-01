@@ -1,7 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -13,14 +12,9 @@ final class RequestMetadataSupport {
 
     static String currentClientIp() {
         HttpServletRequest request = currentRequest();
-        if (request == null) {
-            return null;
-        }
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        // Already the real client behind a trusted proxy (see RateLimitingFilter);
+        // a raw X-Forwarded-For would let callers forge the audited IP.
+        return request == null ? null : request.getRemoteAddr();
     }
 
     static String currentUserAgent() {

@@ -37,6 +37,7 @@ open-api     (sample business API protected by security-api)           ── ru
 | `api-core`   | —     | ❌ off  | Shared library: API response envelopes (`ApiResponse`, `ApiStatus`, `StatusCode`), pagination, enum converters, interceptors. Built as a plain `jar` and consumed by the other modules — not run directly. |
 | `security-api` | 8080  | ✅ on   | Core authentication service: signup/login, JWT issue/refresh/revocation, Google ID-token login, MFA (TOTP + backup codes), email verification, password reset, account lockout/unlock, RBAC (roles/permissions), user management, audit logging, rate limiting, Swagger UI. |
 | `open-api`      | 8082  | ✅ on   | Example business API (to-do lists/items) that depends on `security-api` for authentication. |
+| `finance-api`   | 8083  | ✅ on   | Personal finance API (scaffold, no endpoints yet — see `docs/finance-api.md`), secured by `security-api`'s JWT. |
 
 Dependency wiring lives in the **root `build.gradle`** (`subprojects { ... }`
 plus per-project blocks), so most dependencies are declared once at the top.
@@ -360,7 +361,7 @@ shape across modules):
 
 | Key | Source | Notes |
 |-----|--------|-------|
-| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`api-core`, not run directly), 8080 (`security-api`), 8082 (`open-api`) |
+| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`api-core`, not run directly), 8080 (`security-api`), 8082 (`open-api`), 8083 (`finance-api`) |
 | `spring.datasource.url` | `${DB_URL}` | Defaults to `jdbc:postgresql://localhost:5432/jwt_auth` (`jwt_auth_test` under the `test` profile) |
 | `spring.flyway.enabled` | `true` | Flyway is the sole schema authority — see `db/migration/` |
 | `spring.jpa.hibernate.ddl-auto` | `validate` (all profiles) | Hibernate only verifies the schema at startup; it never creates/alters it |
@@ -369,7 +370,9 @@ shape across modules):
 | `jwt.refresh-token.expiration` | `P7D` | Refresh-token lifetime |
 | `mfa.encryption-key` | `${MFA_ENCRYPTION_KEY}` | Base64 AES-256 key encrypting TOTP secrets at rest (`MfaEncryptionConfig`/`MfaSecretConverter`). No fallback outside `local`/`test`. |
 | `google.client-ids` | `${GOOGLE_CLIENT_IDS:}` | Comma-separated allowed OAuth client IDs; empty disables Google sign-in |
-| `app.frontend-url` | `${FRONTEND_URL}` | Used for CORS / reset, verification, and unlock links |
+| `app.frontend-url` | `${FRONTEND_URL}` | Base URL of reset, verification, and unlock links |
+| `app.cors.allowed-origins` | `${CORS_ALLOWED_ORIGINS}` | Comma-separated browser origins allowed by CORS (patterns like `https://*.vercel.app` allowed, `*` refused). Defaults to `http://localhost:3000,http://127.0.0.1:3000`; **required in `prod`** (no default). |
+| `app.email.resend-cooldown-seconds` | `60` | Minimum gap between resent verification / unlock emails to one account |
 | `app.account-lock.max-failed-attempts` | `5` | Failed logins before an account is locked |
 | `app.account-lock.lock-duration-minutes` | `15` | How long a lockout lasts before it auto-clears |
 | `app.account-lock.unlock-token-expiration-minutes` | `60` | TTL of the emailed self-service unlock link |

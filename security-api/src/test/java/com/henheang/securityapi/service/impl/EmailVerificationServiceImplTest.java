@@ -18,6 +18,7 @@ import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.security.SecureTokenGenerator;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -102,6 +103,39 @@ class EmailVerificationServiceImplTest {
         service.resendVerificationEmail(user.getEmail());
 
         verify(emailVerificationTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void resendVerificationEmail_withinCooldown_sendsNothing() {
+        ReflectionTestUtils.setField(service, "resendCooldownSeconds", 60L);
+        User user = user();
+        user.setEmailVerified(false);
+        EmailVerificationToken recent = new EmailVerificationToken();
+        recent.setCreatedAt(Instant.now().minusSeconds(10));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findByUser(user)).thenReturn(List.of(recent));
+
+        service.resendVerificationEmail(user.getEmail());
+
+        verify(emailVerificationTokenRepository, never()).save(any());
+        verify(emailService, never()).sendVerificationEmail(any(), any(), any());
+    }
+
+    @Test
+    void resendVerificationEmail_afterCooldown_sendsNewLink() {
+        ReflectionTestUtils.setField(service, "resendCooldownSeconds", 60L);
+        User user = user();
+        user.setEmailVerified(false);
+        EmailVerificationToken old = new EmailVerificationToken();
+        old.setCreatedAt(Instant.now().minusSeconds(120));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findByUser(user)).thenReturn(List.of(old));
+        when(secureTokenGenerator.generate()).thenReturn("secure-token");
+        when(emailService.sendVerificationEmail(any(), any(), any())).thenReturn(true);
+
+        service.resendVerificationEmail(user.getEmail());
+
+        verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
     }
 
     @Test

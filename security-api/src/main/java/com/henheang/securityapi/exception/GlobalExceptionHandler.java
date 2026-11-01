@@ -9,6 +9,7 @@ import java.util.Map;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -34,6 +36,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
     }
 
+    // A URL nothing handles (a typo, a scanner probing /wp-admin, the API docs
+    // in prod). Without this the catch-all below would answer 500.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFoundException(
+            NoResourceFoundException ex, WebRequest request) {
+        ApiResponse<Object> apiResponse =
+                new ApiResponse<>(
+                        new ApiStatus(StatusCode.NOT_FOUND), StatusCode.NOT_FOUND.getMessage());
+
+        return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Object>> handleBadRequestException(
             BadRequestException ex, WebRequest request) {
@@ -41,6 +55,19 @@ public class GlobalExceptionHandler {
                 new ApiResponse<>(
                         new ApiStatus(StatusCode.BAD_REQUEST.getCode(), ex.getMessage()),
                         ex.getMessage());
+        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    // Malformed JSON, a wrong type, or a field a strict request type rejects.
+    // A client error, not a 500; the parser's message isn't echoed because it
+    // can quote the offending input.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException ex, WebRequest request) {
+        String message = "Malformed or unexpected request body.";
+        ApiResponse<Object> apiResponse =
+                new ApiResponse<>(
+                        new ApiStatus(StatusCode.BAD_REQUEST.getCode(), message), message);
         return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
     }
 
@@ -140,9 +167,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Object>> handleBusinessException(
             BusinessException ex, WebRequest request) {
+        // The specific message (e.g. "Vault isn't set up yet."), not just the
+        // code's generic one, so clients can show status.message as-is. It
+        // equals the generic message when none was given.
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
-                        new ApiStatus(ex.getErrorCode()),
+                        new ApiStatus(ex.getErrorCode().getCode(), ex.getMessage()),
                         ex.getBody() != null ? ex.getBody() : ex.getMessage());
 
         return new ResponseEntity<>(

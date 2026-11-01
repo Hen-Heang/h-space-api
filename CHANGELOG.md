@@ -8,6 +8,28 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- Quick Capture Inbox API in `hub-api` (`/api/hub/inbox-items`, migration
+  `V2__inbox_items.sql`), the pilot area of `docs/spring-migration-plan.md`.
+  Originally built as a separate `hspace-api` module (V100 in the shared
+  Flyway history); folded into `hub-api` so there's one product module and
+  its migrations can't block `security-api`'s. Not cut over yet.
+- hub-api deployment: the `Dockerfile` builds any module (`MODULE` build
+  arg, port 8080 in every image); CI builds, smoke-checks and publishes a
+  `hub-api` image next to `security-api`; `deploy/compose.prod.yaml` runs it
+  opt-in (compose profile `hub`, 640 MB) and Caddy routes `/api/hub/*` to it.
+  hub-api now exposes the same detail-free health endpoints and hides API
+  docs in prod. Runbook: `docs/deploy-vps.md` §15.
+- `hub-api` module (port 8084, `/api/hub/**`) with the H-Vault backend
+  (`/api/hub/vault`): a per-user keyset holding the wrapped vault key and
+  encrypted items, stored as browser-made v2 ciphertext only, with MFA
+  required, owner-only access (another user's item is 404), optimistic
+  versioning across devices, audit events without content, and an hourly
+  purge for deleted accounts. Own Flyway migrations and history table.
+  Design and the gates before real passwords: `docs/vault-design.md`.
+- `security-api`: malformed or unexpected JSON bodies answer 400 instead of
+  500; `BusinessException` responses carry their specific message in
+  `status.message`; writes to `/api/hub/vault/keyset` and
+  `/api/hub/vault/reset` are rate-limited like the auth endpoints.
 - `api-core` can be published as `com.henheang:api-core`
   (`./gradlew :api-core:publishToMavenLocal`) for reuse by other APIs.
 - `local` / `dev` / `test` / `prod` Spring configuration profiles for
@@ -28,8 +50,25 @@ project has no released versions yet, so everything lives under
 - CI `image` job: builds the `security-api` image and smoke-tests it against
   Postgres on every PR; on `main` and `vX.Y.Z` tags it publishes to GHCR
   (`latest`, `sha-<commit>`, version tags) and records the verified digest.
+- `deploy/`: production stack for one small VPS (1 vCPU / 2 GB) —
+  `compose.prod.yaml` runs the CI image (pinned by digest) behind Caddy for
+  automatic HTTPS against an external managed PostgreSQL (Neon or
+  Supabase), with only Caddy publishing ports, the `prod` profile, no
+  default secrets, a 768 MB API memory limit and capped container logs.
+  Step-by-step runbook (endpoint choice, migrations, backups, rollback,
+  monitoring): `docs/deploy-vps.md`.
 
 ### Changed
+- `prod` profile: Hikari pool of 5 with min-idle 1 (`DB_POOL_MAX_SIZE`,
+  `DB_POOL_MIN_IDLE`), and TLS to the database required by default
+  (`sslmode=require`).
+- Image: heap sized at 60% of the container limit (was 75%) with a metaspace
+  cap and exit on OOM; the healthcheck calls `/actuator/health/liveness`, so
+  it no longer queries the database (and keeps a scale-to-zero Neon
+  database asleep), and `wget` is installed if the base image lacks it.
+- CI's image smoke check boots the `prod` profile under a 768 MB limit
+  against a TLS-only Postgres, and checks the container healthcheck passes
+  and every JDBC session is encrypted.
 - Renamed the shared library module `common-api` to `api-core` and its
   package `com.henheang.commonapi` to `com.henheang.apicore`.
 - Deduplicated per-module `build.gradle` files — group/version/plugins/
@@ -52,6 +91,10 @@ project has no released versions yet, so everything lives under
   as Spring bean names (`openApiConfig`) once `todoapi` component-scans
   `security-api`'s package — gave `todoapi`'s config bean an explicit,
   distinct name.
+- `security-api` answered `500` for any URL with no handler (e.g. a typo or
+  a scanner probing `/wp-admin`) because the catch-all exception handler
+  swallowed Spring's `NoResourceFoundException`; it now answers `404` in
+  the usual `ApiResponse` envelope.
 
 ### Security
 - Removed hard-coded JWT secrets and database passwords from
@@ -62,3 +105,12 @@ project has no released versions yet, so everything lives under
   committed with a real-looking secret) is no longer tracked by git. See
   [SECURITY.md](SECURITY.md) for the historical-exposure note and rotation
   guidance.
+- Rate limiting and audit/login-history IPs no longer trust the first
+  `X-Forwarded-For` entry, which the caller controls — sending a new value
+  per request bypassed the per-IP limit on login, MFA and email-code
+  endpoints and forged the logged IP. The client IP now comes from Tomcat's
+  `RemoteIpValve` (`server.forward-headers-strategy: native`), which only
+  honours the header from a trusted (private/loopback) proxy.
+- Swagger UI and the OpenAPI spec are off in the `prod` profile
+  (`API_DOCS_ENABLED=true` turns them on temporarily); other profiles are
+  unchanged.

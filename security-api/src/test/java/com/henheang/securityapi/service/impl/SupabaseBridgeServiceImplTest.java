@@ -89,6 +89,23 @@ class SupabaseBridgeServiceImplTest {
     }
 
     @Test
+    void missingSettings_namesOnlyTheBlankOnes() {
+        assertThat(
+                        SupabaseBridgeServiceImpl.missingSettings(
+                                "https://project.supabase.co", "s", "k"))
+                .isEmpty();
+        assertThat(
+                        SupabaseBridgeServiceImpl.missingSettings(
+                                "https://project.supabase.co", " ", "k"))
+                .containsExactly("supabase.jwt-secret (SUPABASE_JWT_SECRET)");
+        assertThat(SupabaseBridgeServiceImpl.missingSettings(null, "", null))
+                .containsExactly(
+                        "supabase.url (SUPABASE_URL)",
+                        "supabase.jwt-secret (SUPABASE_JWT_SECRET)",
+                        "supabase.service-role-key (SUPABASE_SERVICE_ROLE_KEY)");
+    }
+
+    @Test
     void issueToken_signsClaimsThatSupabaseRlsExpects() {
         when(adminClient.userExists(user.getId())).thenReturn(true);
 

@@ -20,5 +20,12 @@ public enum AuditEventType {
     EMAIL_VERIFIED,
     ACCOUNT_UNLOCK_REQUESTED,
     ACCOUNT_UNLOCKED,
-    SIGNUP_INVITE_SENT
+    SIGNUP_INVITE_SENT,
+    // H-Vault (hub-api). Details carry ids only, never vault content.
+    VAULT_KEYSET_CREATED,
+    VAULT_KEYSET_CHANGED,
+    VAULT_RESET,
+    VAULT_ITEM_CREATED,
+    VAULT_ITEM_UPDATED,
+    VAULT_ITEM_DELETED
 }

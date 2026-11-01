@@ -4,7 +4,14 @@ spring:
   datasource:
     hikari:
       connection-timeout: 20000
-      maximum-pool-size: 20
+      # Sized for one small VPS and a managed database's connection limit.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      # TLS to the database even when DB_URL doesn't say so. A sslmode in
+      # DB_URL takes precedence: use it to go stricter (verify-full), never
+      # weaker. Flyway uses this same pool.
+      data-source-properties:
+        sslmode: require
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
@@ -21,6 +28,21 @@ jwt:
 
 mfa:
   encryption-key: ${MFA_ENCRYPTION_KEY}
+
+# The web app's origin(s), e.g. https://hengo.henheang.site - no localhost
+# fallback in production.
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+# No public API docs in production: Swagger UI and the OpenAPI spec map out
+# every endpoint for anyone who finds them. Set API_DOCS_ENABLED=true to
+# turn both on temporarily.
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
 
 logging:
   level:

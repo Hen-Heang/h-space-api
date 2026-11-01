@@ -17,14 +17,14 @@ vertical slice (the Inbox).
 
 | # | Decision | Why |
 |---|---|---|
-| D1 | **One product module, `hspace-api`**, one package set per area. Not one app per area, and not inside `security-api`. | The design doc's modular monolith (§3.1): one port, one deploy, one Flyway history. Keeps auth (`security-api`) separate from product data. |
-| D2 | `hspace-api` **embeds `security-api`** (component scan, like `open-api`), so it validates the same JWTs against the same database: filter chain, revoked tokens, email-verified check, `GlobalExceptionHandler`, `ApiResponse` envelope. | No second auth implementation; a revoked token is revoked everywhere. |
+| D1 | **One product module, `hub-api`** (`/api/hub/**`), one package set per area. Not one app per area, and not inside `security-api`. (This plan first named it `hspace-api`; it was folded into `hub-api`, which H-Vault had already started, on 2026-11-01.) | The design doc's modular monolith (§3.1): one port, one deploy, one migration history. Keeps auth (`security-api`) separate from product data. |
+| D2 | `hub-api` **embeds `security-api`** (component scan, like `open-api`), so it validates the same JWTs against the same database: filter chain, revoked tokens, email-verified check, `GlobalExceptionHandler`, `ApiResponse` envelope. | No second auth implementation; a revoked token is revoked everywhere. |
 | D3 | Product tables live in the **same PostgreSQL database** as `security-api`, default schema, with `user_id UUID REFERENCES users(id)`. | Users already share UUIDs with Supabase (account import), so rows copy across with their ids and owners unchanged. |
-| D4 | `hspace-api` migrations are numbered **V100+**; `out-of-order: true` in `hspace-api`. | `security-api` keeps V1–V99 without collisions (`docs/database.md`). |
+| D4 | `hub-api` migrations live in `db/hub-migration` with **their own history table** (`flyway_hub_schema_history`, `HubFlywayConfig`). Replaces the earlier "V100+ in the shared history with `out-of-order`" idea. | In production `security-api` migrates alone and without `out-of-order`: once it adds V7 below an applied V100, its validation fails and it won't start. Separate histories can't collide (`docs/database.md`). |
 | D5 | **Ownership replaces RLS in the service layer**: every repository query takes the caller's `userId` from the JWT; another user's id answers **404**; the owner never comes from the request body. | Design doc §5.1. Tested per area (other-user tests). |
 | D6 | Each moved area gets a **frontend data-source flag** (`NEXT_PUBLIC_DATA_SOURCE_<AREA>=spring`), default off. | Cutover and rollback are a config change; the Supabase table is left untouched by the copy. |
-| D7 | Next.js AI routes keep authenticating with the Supabase bridge token until the areas they read have all moved; for an area already in Spring the browser also sends its h-space-api token (`x-hspace-token`, same-origin only) and the route reads that area from `hspace-api`. | Avoids changing token signing now. Revisit in Phase 4 (see [Open items](#open-items)). |
-| D8 | The H-Vault (`kori_vault_accounts`) **does not move** in this plan. | It's behind the separate security gate in `CLAUDE.md` (threat model + independent review first). |
+| D7 | Next.js AI routes keep authenticating with the Supabase bridge token until the areas they read have all moved; for an area already in Spring the browser also sends its h-space-api token (`x-hspace-token`, same-origin only) and the route reads that area from `hub-api`. | Avoids changing token signing now. Revisit in Phase 4 (see [Open items](#open-items)). |
+| D8 | The H-Vault isn't copied from Supabase (`kori_vault_accounts` was never created there). It's built directly in `hub-api` (`/api/hub/vault`) behind its own security gate: `docs/vault-design.md`. | `CLAUDE.md` vault gate: threat model and independent review before real secrets. |
 | D9 | Luyra (`apps/luyra`) is **out of scope**: its own Supabase Auth and finance data. Its read of H-Space learning tables moves when Learning moves. | Separate app and data owner. |
 
 ## What depends on Supabase today
@@ -58,8 +58,8 @@ map of the live database — never commit it.
 
 | Phase | Areas (Supabase tables) | Extra work | Status |
 |---|---|---|---|
-| **0 Groundwork** | — | `hspace-api` module, conventions D1–D7, live schema snapshot, frontend `hspaceRequest` (401 → refresh once → retry), data-source flag pattern | **Done** (see below) |
-| **1 Pilot: Inbox** | `kori_inbox_items` | Ask-Hengo memory search reads the inbox from `hspace-api` when flagged | **Built + tested; cutover pending** |
+| **0 Groundwork** | — | `hub-api` module, conventions D1–D7, live schema snapshot, frontend `hspaceRequest` (401 → refresh once → retry), data-source flag pattern | **Done** (see below) |
+| **1 Pilot: Inbox** | `kori_inbox_items` | Ask-Hengo memory search reads the inbox from `hub-api` when flagged | **Built + tested; cutover pending** |
 | 2 Small personal areas | Journal + manual activities (`kori_journal_entries`, `kori_manual_activities`); Notes (`kori_notes`); Memories (`kori_memory_candidates`); Habits (`kori_habits`, `kori_habit_checkins`) | Full-text search columns (Notes, Journal) like the Inbox; Ask-Hengo retrieval per area | Not started |
 | 2b Reminders | `kori_reminders`, `kori_push_subscriptions`, `kori_push_config`, `kori_telegram_link_codes`, `kori_telegram_links`, `kori_public_holidays` | Replace the `pg_cron` jobs with Spring `@Scheduled` jobs; `kori_next_reminder_run` as service code; Telegram bot token and VAPID keys to Spring config (env/secret store, not Supabase Vault) | Not started |
 | 3 Goals & tasks | `goals`, `tasks`, `goal_members`, `goal_stars`, `notifications`, `goal_key_results`, `goal_evidence`, `goal_reviews`, `goal_plan_phases`, `goal_schedule_rules` | The 6 goal-sharing/notification RPCs become service methods with explicit member/owner checks (shared goals are the one place ownership isn't just `user_id`) — write each access rule from scratch and test it, rather than translating the SQL; bucket `goal-themes`; drop the cross-store `goal_id` caveat on Inbox | Not started |
@@ -68,18 +68,19 @@ map of the live database — never commit it.
 | 5 Sensitive | Recovery (`kori_focus_*`, 9 tables); integrations (`kori_google_calendar_integrations`, `kori_mcp_audit`) | Recovery last (most sensitive personal data); Google Calendar refresh tokens need encryption at rest in Spring | Not started |
 | 6 Remove Supabase | — | Delete the bridge (`SupabaseBridge*`), the account import (`SupabaseUserImport*`), `apps/web/lib/supabase.ts`, the Supabase env vars, `requireUser`'s Supabase check; archive or drop the Supabase tables after a retention period | Not started |
 
-The Vault stays on Supabase (D8). Each phase is one or more PRs per area,
-each following the checklist below.
+H-Vault isn't part of these phases (D8). Each phase is one or more PRs per
+area, each following the checklist below; a drafted spec for Notes is in
+`docs/migration-area-notes.md`.
 
 ## Phase 0 — what exists now
 
-- `hspace-api` module (`settings.gradle`, root `build.gradle`), port **8084**,
-  Swagger group `hspace` (`/api/v1/**`).
-- Conventions: Flyway V100+ (`docs/database.md`), user-scoped repositories,
+- `hub-api` module (`settings.gradle`, root `build.gradle`), port **8084**,
+  Swagger group `hub` (`/api/hub/**`).
+- Conventions: own Flyway history (`db/hub-migration`, `docs/database.md`), user-scoped repositories,
   `ResourceNotFoundException` → 404 for other users' items, `BadRequestException`
   → 400, `@Valid` DTOs → 400 with a field map, `ApiResponse` envelope.
 - Test pattern: `@SpringBootTest` + MockMvc against the real Flyway schema in
-  `hspace_api_test`, two users per test class, JWTs from `JwtTokenProvider`
+  `hub_api_test`, two users per test class, JWTs from `JwtTokenProvider`
   (`InboxItemControllerIntegrationTest`).
 - Frontend (`h-space` `apps/web`):
   - `lib/api/hspace-http.ts` `hspaceRequest()`: bearer token, base URL
@@ -93,25 +94,25 @@ each following the checklist below.
 
 ## Phase 1 — Inbox
 
-**API** (`hspace-api`, `InboxItemController`):
+**API** (`hub-api`, `InboxItemController`):
 
 | Method & path | Body / params | Notes |
 |---|---|---|
-| `GET /api/v1/inbox-items` | `status`, `itemType` (`all`/omitted = any), `q` (English websearch full-text), `limit` 1–500 (default 500) | Newest `capturedAt` first |
-| `GET /api/v1/inbox-items/{id}` | — | 404 if not the caller's |
-| `POST /api/v1/inbox-items` | `content` (required, ≤4000), `itemType` (required), `title` ≤200, `tags` ≤100 × ≤100 chars, `eventAt`, `goalId`, `source` | `status=inbox`, `capturedAt=now` |
-| `PATCH /api/v1/inbox-items/{id}` | any of `title`, `content`, `itemType`, `tags`, `eventAt`, `goalId`, `pinned`, `status`, `convertedToType`, `convertedToId` | Omitted = unchanged, `null` = clear (nullable fields only) |
-| `DELETE /api/v1/inbox-items/{id}` | — | Hard delete, like today |
+| `GET /api/hub/inbox-items` | `status`, `itemType` (`all`/omitted = any), `q` (English websearch full-text), `limit` 1–500 (default 500) | Newest `capturedAt` first |
+| `GET /api/hub/inbox-items/{id}` | — | 404 if not the caller's |
+| `POST /api/hub/inbox-items` | `content` (required, ≤4000), `itemType` (required), `title` ≤200, `tags` ≤100 × ≤100 chars, `eventAt`, `goalId`, `source` | `status=inbox`, `capturedAt=now` |
+| `PATCH /api/hub/inbox-items/{id}` | any of `title`, `content`, `itemType`, `tags`, `eventAt`, `goalId`, `pinned`, `status`, `convertedToType`, `convertedToId` | Omitted = unchanged, `null` = clear (nullable fields only) |
+| `DELETE /api/hub/inbox-items/{id}` | — | Hard delete, like today |
 
 Response fields match the web app's `InboxItem` type, so the frontend adapter
 needs no mapping. `user_id` is never returned.
 
-**Data ownership:** after cutover, `hspace-api` owns inbox items. `goal_id`
+**Data ownership:** after cutover, `hub-api` owns inbox items. `goal_id`
 still points at a Supabase goal (no FK until Phase 3), the same weak link it
 is today. Conversions still create the Note/Task/Journal entry in Supabase and
 then stamp the inbox item in Spring.
 
-**Tests:** `hspace-api` `InboxItemControllerIntegrationTest` (10 cases:
+**Tests:** `hub-api` `InboxItemControllerIntegrationTest` (10 cases:
 create/read, validation, filters, limits, full-text search scoped to the
 caller, other user → 404 on get/patch/delete, PATCH absent vs null, invalid
 PATCH values, delete, unauthenticated → 401). Frontend:
@@ -128,9 +129,10 @@ for every module, as its own change.
 The export file holds personal data: keep it outside any repository, never
 paste it into tools or chats, and delete it after the import.
 
-1. **Run `hspace-api`** against the Spring database (it applies V100). Set
-   `JWT_SECRET` (and the rest of `security-api`'s secrets) to the **same**
-   values as the running `security-api`, or tokens won't validate.
+1. **Run `hub-api`** against the Spring database (it applies its V2,
+   `inbox_items`) — on the VPS that's the `hub` compose profile
+   (`docs/deploy-vps.md` §15), which already shares `security-api`'s
+   `JWT_SECRET` and the rest of its secrets.
 2. **Check owners exist** — every Supabase inbox owner must be a Spring user
    with the same id (account import, `docs/supabase-user-import.md`). On
    Supabase:
@@ -165,9 +167,9 @@ paste it into tools or chats, and delete it after the import.
    select user_id, count(*), md5(string_agg(id::text || content || status, '|' order by id))
    from <table> group by user_id order by user_id;
    ```
-6. **Switch** the web app: `NEXT_PUBLIC_HSPACE_API_URL=<hspace-api URL>`,
-   `NEXT_PUBLIC_DATA_SOURCE_INBOX=spring`; redeploy. Add the web origin to
-   `hspace-api`'s CORS first (see Open items).
+6. **Switch** the web app: `NEXT_PUBLIC_DATA_SOURCE_INBOX=spring`; redeploy.
+   (`NEXT_PUBLIC_HSPACE_API_URL` can stay unset: it defaults to the auth API's
+   URL, where Caddy routes `/api/hub/*` to `hub-api`.)
 7. **Verify** in the app: list, capture, pin, archive, convert to note/task/journal, Ask Hengo
    cites an inbox item.
 8. **Delete** `inbox_items.csv`.
@@ -189,7 +191,7 @@ Copy this into the PR for every area that moves.
 - [ ] **RLS replaced** — read every Supabase policy for the tables; each rule
       becomes a service check. Shared data (goal members, public catalogs)
       gets explicit tests.
-- [ ] **API contract** — `/api/v1/<kebab-plural>`, response fields equal to
+- [ ] **API contract** — `/api/hub/<kebab-plural>`, response fields equal to
       the frontend type, PATCH semantics documented; Swagger annotations.
 - [ ] **Tests** — success, validation (400), other user (404), unauthenticated
       (401), duplicates/conflicts where relevant, against the real schema.
@@ -204,27 +206,18 @@ Copy this into the PR for every area that moves.
 
 ## Open items
 
-- **CORS** — origins are hard-coded to localhost (`WebSecurityConfig`,
-  `CorsConfig`); a deployed web app can't call `security-api` or `hspace-api`
-  until they're read from configuration (audit finding 1.16). Needed before
-  any cutover outside local.
-- **Configuration sharing** — `hspace-api`'s `application.yml` carries only
-  the subset of `security-api` settings its tests need (like `open-api` and
-  `finance-api`). Before `hspace-api` runs anywhere but locally, give it the
-  same settings as `security-api` (JWT, MFA key, mail, Google client ids,
-  owner email, signup mode, Supabase bridge), or extract them into one shared
-  file.
-- **One backend or two** — `hspace-api` already serves every `security-api`
-  endpoint too. Deploying only `hspace-api` (and pointing both frontend URLs at
-  it) is simplest; decide before the first production cutover.
+- ~~**CORS**~~ — done: origins come from `CORS_ALLOWED_ORIGINS`.
+- ~~**Configuration sharing / one backend or two**~~ — done: `hub-api` runs
+  as its own container next to `security-api` with the same `.env`; Caddy
+  sends `/api/hub/*` to it and everything else to `security-api`
+  (`docs/deploy-vps.md` §15).
 - **AI-route auth (Phase 4)** — when most data is in Spring, switch the Next.js
   routes from Supabase `auth.getUser` to verifying the h-space-api token: either
   call `GET /api/auth/user`, or have `security-api` sign with an asymmetric key
   and publish it (JWKS) so routes verify locally. Decide then.
-- **`finance-api`** (branch `feat/finance-api-module`) — under D1, finance
-  becomes a package in `hspace-api` rather than its own app; fold the scaffold
-  in when finance work starts.
-- **Local run** — `hspace-api` has no committed `local` profile settings; copy
+- **`finance-api`** — under D1, finance becomes a package in `hub-api` rather
+  than its own app; fold the scaffold in when finance work starts.
+- **Local run** — `hub-api` has no committed `local` profile settings; copy
   `security-api`'s git-ignored `application-local.yml` to
-  `hspace-api/src/main/resources/application-local.yml` (also git-ignored) so
+  `hub-api/src/main/resources/application-local.yml` (also git-ignored) so
   both use the same database and `jwt.secret`.

@@ -36,6 +36,16 @@ class HealthEndpointIntegrationTest {
     }
 
     @Test
+    void livenessProbeIsPublicAndMinimal() throws Exception {
+        // The image's HEALTHCHECK target: it doesn't query the database, so
+        // checks every few seconds don't keep a scale-to-zero DB awake.
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist());
+    }
+
+    @Test
     void otherActuatorEndpointsAreNotPublic() throws Exception {
         // Not exposed at all; the security chain answers 401 for the
         // anonymous caller before the (absent) handler would 404.

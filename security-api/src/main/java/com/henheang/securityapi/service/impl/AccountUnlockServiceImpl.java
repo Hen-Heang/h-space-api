@@ -12,6 +12,7 @@ import com.henheang.securityapi.security.SecureTokenGenerator;
 import com.henheang.securityapi.service.AccountUnlockService;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +40,11 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
 
     @Value("${app.frontend-url:http://localhost:3000}")
     private String frontendUrl;
+
+    // A resend inside this window of the last email is skipped, so the public
+    // resend endpoint can't be used to flood someone's inbox.
+    @Value("${app.email.resend-cooldown-seconds:60}")
+    private long resendCooldownSeconds;
 
     @Override
     @Transactional
@@ -82,7 +88,21 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
             return;
         }
 
+        if (sentWithinCooldown(user)) {
+            logger.info("Unlock resend skipped (cooldown) for user {}", user.getId());
+            return;
+        }
+
         sendUnlockEmail(user);
+    }
+
+    private boolean sentWithinCooldown(User user) {
+        Instant cutoff = Instant.now().minusSeconds(resendCooldownSeconds);
+        return accountUnlockTokenRepository.findByUser(user).stream()
+                .anyMatch(
+                        token ->
+                                token.getCreatedAt() != null
+                                        && token.getCreatedAt().isAfter(cutoff));
     }
 
     @Override

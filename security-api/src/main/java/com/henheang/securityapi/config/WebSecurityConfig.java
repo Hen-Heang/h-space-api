@@ -4,6 +4,7 @@ import com.henheang.securityapi.security.*;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -35,6 +36,9 @@ public class WebSecurityConfig {
     private final JwtAuthenticationEntryPoint unauthorizedHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RateLimitingFilter rateLimitingFilter;
+
+    @Value("${app.cors.allowed-origins}")
+    private String corsAllowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -127,16 +131,7 @@ public class WebSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Specify allowed origins explicitly
-        configuration.setAllowedOriginPatterns(
-                List.of(
-                        "http://localhost:3000",
-                        "http://localhost:4200",
-                        "http://localhost:8080",
-                        "http://127.0.0.1:3000",
-                        "http://127.0.0.1:4200",
-                        "http://127.0.0.1:8080",
-                        "https://yourdomain.com"));
+        configuration.setAllowedOriginPatterns(parseAllowedOrigins(corsAllowedOrigins));
         configuration.setAllowedMethods(
                 Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(
@@ -155,6 +150,25 @@ public class WebSecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    // app.cors.allowed-origins, comma-separated. Fails startup rather than
+    // run with no allowed origin, or with "*" (any site could call the API).
+    static List<String> parseAllowedOrigins(String commaSeparated) {
+        List<String> origins =
+                Arrays.stream(commaSeparated.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isEmpty())
+                        .toList();
+        if (origins.isEmpty()) {
+            throw new IllegalStateException(
+                    "app.cors.allowed-origins (CORS_ALLOWED_ORIGINS) must list at least one origin");
+        }
+        if (origins.contains("*")) {
+            throw new IllegalStateException(
+                    "app.cors.allowed-origins (CORS_ALLOWED_ORIGINS) must not be \"*\"");
+        }
+        return origins;
     }
 
     @Bean
