@@ -8,6 +8,12 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- hub-api deployment: the `Dockerfile` builds any module (`MODULE` build
+  arg, port 8080 in every image); CI builds, smoke-checks and publishes a
+  `hub-api` image next to `security-api`; `deploy/compose.prod.yaml` runs it
+  opt-in (compose profile `hub`, 640 MB) and Caddy routes `/api/hub/*` to it.
+  hub-api now exposes the same detail-free health endpoints and hides API
+  docs in prod. Runbook: `docs/deploy-vps.md` §15.
 - `hub-api` module (port 8084, `/api/hub/**`) with the H-Vault backend
   (`/api/hub/vault`): a per-user keyset holding the wrapped vault key and
   encrypted items, stored as browser-made v2 ciphertext only, with MFA

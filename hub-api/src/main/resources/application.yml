@@ -48,6 +48,23 @@ hub:
     # migrates its own schema. See HubFlywayConfig.
     run-security-migrations: ${HUB_RUN_SECURITY_MIGRATIONS:true}
 
+# Same as security-api: /actuator/health (plus /liveness and /readiness) is
+# the only exposed actuator endpoint, public and detail-free. The container
+# healthcheck uses /liveness, which doesn't query the database.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: false
+
 server:
   port: ${SERVER_PORT:8084}
   # Same as security-api: resolve the client IP from X-Forwarded-For only when

@@ -1,4 +1,5 @@
-# Caddy terminates HTTPS and forwards to security-api. It obtains and renews
+# Caddy terminates HTTPS and forwards to security-api (and /api/hub/* to
+# hub-api). It obtains and renews
 # the Let's Encrypt certificate for API_DOMAIN by itself - the domain's DNS A
 # record must point at this server and ports 80/443 must be open.
 {
@@ -11,5 +12,13 @@
 	# Caddy replaces any client-sent X-Forwarded-For with the real client IP
 	# and sets X-Forwarded-Proto: https, which Tomcat's RemoteIpValve then
 	# trusts because Caddy is on the private Docker network.
-	reverse_proxy security-api:8080
+	# hub-api (opt-in, compose profile "hub") owns /api/hub/*. Without it
+	# running these paths answer 502; everything else is unaffected.
+	handle /api/hub/* {
+		reverse_proxy hub-api:8080
+	}
+
+	handle {
+		reverse_proxy security-api:8080
+	}
 }

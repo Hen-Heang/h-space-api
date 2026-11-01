@@ -1,9 +1,13 @@
-# Production stack for one small VPS: Caddy (HTTPS) -> security-api ->
-# external PostgreSQL (Neon or Supabase). Runbook: docs/deploy-vps.md.
+# Production stack for one small VPS: Caddy (HTTPS) -> security-api (and,
+# opt-in, hub-api for /api/hub/*) -> external PostgreSQL (Neon or Supabase).
+# Runbook: docs/deploy-vps.md.
 #
 # On the server, from this directory:
 #   cp prod.env.example .env && chmod 600 .env   # then fill in every value
 #   docker compose -f compose.prod.yaml up -d
+#
+# hub-api (H-Vault's backend) only starts with the "hub" profile:
+# COMPOSE_PROFILES=hub in .env, plus HUB_IMAGE. See docs/deploy-vps.md §15.
 #
 # Differences from ../compose.yaml (local dev):
 # - runs the image CI built and smoke-checked (API_IMAGE, pinned by digest)
@@ -48,6 +52,40 @@ services:
     # and Caddy.
     mem_limit: ${API_MEM_LIMIT:-768m}
     # Healthcheck comes from the image (/actuator/health/liveness).
+    logging: *logging
+    restart: unless-stopped
+
+  # Personal-hub data (H-Vault first): /api/hub/* is routed here by Caddy.
+  # Same database, same JWT secret as security-api - it validates the tokens
+  # security-api issues. It runs only its own migrations (db/hub-migration);
+  # security-api must have migrated first, hence depends_on below.
+  hub-api:
+    profiles: ["hub"]
+    # Not `:?` like the others: compose interpolates every service, even one
+    # whose profile is off, so a required HUB_IMAGE would break the stack for
+    # anyone not running hub-api. Unset, the pull fails naming the variable.
+    image: ${HUB_IMAGE:-hub-image-not-set-in-env}
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: ${DB_URL:?set DB_URL in .env}
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in .env}
+      # Its own small pool, whatever DB_POOL_MAX_SIZE gives security-api.
+      DB_POOL_MAX_SIZE: ${HUB_DB_POOL_MAX_SIZE:-3}
+    depends_on:
+      security-api:
+        condition: service_healthy
+    # ~380 MB heap (60%); it carries all of security-api's code, so its
+    # non-heap needs ~200 MB too (measured ~380 MiB just after start). Limits
+    # are ceilings, not reservations: real use with security-api and Caddy is
+    # ~0.8 GB of the 2 GB VPS, with swap for peaks.
+    mem_limit: ${HUB_MEM_LIMIT:-640m}
     logging: *logging
     restart: unless-stopped
 
