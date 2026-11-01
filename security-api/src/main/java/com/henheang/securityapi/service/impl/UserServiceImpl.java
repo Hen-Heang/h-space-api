@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -79,12 +80,23 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Object updateUser(UUID id, UpdateUserRequest updateUserRequest) {
+    public Object updateUser(UUID id, UpdateUserRequest updateUserRequest, boolean callerIsAdmin) {
         //        Find user for update
         User user =
                 userRepository
                         .findById(id)
                         .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+
+        // Email and its verified flag decide sign-in and the owner-admin rule, so a user can't
+        // set their own - they could claim the owner's address, mark it verified and be made
+        // admin at the next sign-in.
+        boolean changesEmail =
+                updateUserRequest.getEmail() != null
+                        && !updateUserRequest.getEmail().equals(user.getEmail());
+        if (!callerIsAdmin && (changesEmail || updateUserRequest.getEmailVerified() != null)) {
+            throw new AccessDeniedException(
+                    "Only an admin can change an account's email or its verified status");
+        }
 
         //        Check if name is already in use
         if (updateUserRequest.getName() != null) {
@@ -96,9 +108,11 @@ public class UserServiceImpl implements UserService {
             user.setName(updateUserRequest.getName());
         }
         //        Check if email is already in use
-        if (updateUserRequest.getEmail() != null
-                && !updateUserRequest.getEmail().equals(user.getEmail())) {
-            Optional<User> existingUser = userRepository.findByEmail(updateUserRequest.getEmail());
+        if (changesEmail) {
+            // Case-insensitive: "Owner@x.com" is the same mailbox as "owner@x.com".
+            Optional<User> existingUser =
+                    userRepository.findFirstByEmailIgnoreCaseOrderByCreatedAtAsc(
+                            updateUserRequest.getEmail());
 
             if (existingUser.isPresent() && !existingUser.get().getId().equals(user.getId())) {
                 throw new RuntimeException("Email is already in use by another account");

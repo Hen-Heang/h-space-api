@@ -103,6 +103,10 @@ project has no released versions yet, so everything lives under
   the usual `ApiResponse` envelope.
 
 ### Security
+- `PATCH /api/users/{id}`: only an admin can change an account's `email` or
+  `email_verified`. A user could previously change these on their own
+  account, which the owner-admin rule would have honoured. The email
+  uniqueness check is now case-insensitive.
 - Removed hard-coded JWT secrets and database passwords from
   `common-api`, `security-api`, and `todoapi`'s `application*.yml` files;
   all secrets now come from environment variables with no insecure
