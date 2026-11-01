@@ -320,13 +320,11 @@ h-space-api/
 │       └── db/migration/   # Flyway: V1__baseline, V2__account_security_tokens,
 │                           #   V3__mfa_recovery_codes
 │
-├── open-api/               # Sample business API (port 8082)
-│   └── src/main/java/com/test/open-api/
-│       ├── controller/  service/  repository/
-│       ├── domain/       # TodoList, TodoItem, Tag, ListShare, TodoComment, ...
-│       ├── payload/  enums/  util/
-│
-└── legacy/spring-jwt-auth/ # Archived, not part of the Gradle build (see its README)
+└── open-api/               # Sample business API (port 8082)
+    └── src/main/java/com/test/open-api/
+        ├── controller/  service/  repository/
+        ├── domain/       # TodoList, TodoItem, Tag, ListShare, TodoComment, ...
+        ├── payload/  enums/  util/
 ```
 
 ---
@@ -385,11 +383,3 @@ shape across modules):
 Google login is verified via ID token (`security/oauth/GoogleTokenVerifier`) —
 there is no cookie-based OAuth2 redirect flow, and the old custom OTP feature has
 been removed. See `docs/security-api-state.md` for the current state of this module.
-
----
-
-## Legacy
-
-`legacy/spring-jwt-auth/` is an earlier standalone JWT-auth practice project,
-kept for reference. It is **not** wired into the Gradle build (not in
-`settings.gradle`) and is superseded by `security-api`. See its own README.

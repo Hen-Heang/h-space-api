@@ -46,9 +46,3 @@ util/`.
 
 - Sample business API (to-do lists/items) secured by JWTs issued by
   `security-api`. Depends on both `api-core` and `security-api`.
-
-## `legacy/spring-jwt-auth/`
-
-Archived standalone project. Not in `settings.gradle`, not part of the
-build, not part of dependency resolution. Reference-only — never extend it
-or pull code from it into an active module.

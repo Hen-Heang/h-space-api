@@ -12,8 +12,8 @@ Full detail: `docs/architecture.md`.
   `finance-api` (8083) and `hub-api` (8084, personal-hub data incl. H-Vault)
   are secured by `security-api`'s JWT — they may depend on `security-api`,
   not vice versa.
-- `legacy/spring-jwt-auth/` is archived, not in `settings.gradle`, not part
-  of the build. Reference only — don't extend it, don't wire it back in.
+- The archived `legacy/spring-jwt-auth/` project has been deleted — don't
+  reintroduce it (it's in git history if ever needed for reference).
 - Shared dependency versions/plugin config live once in the root
   `build.gradle`'s `subprojects {}` block — don't repeat them per-module.
 - Before adding a new module or cross-module call, check this direction

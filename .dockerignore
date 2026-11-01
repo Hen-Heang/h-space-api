@@ -21,7 +21,6 @@
 **/bin
 
 # Not part of the build
-legacy
 AI
 postman
 docs

@@ -19,6 +19,5 @@ hub-api       (personal-hub data API, port 8084, runnable, depends on security-a
 - `open-api` — sample business API secured by `security-api`'s JWT.
 - `hub-api` — personal-hub data moving off Supabase (`/api/hub/**`), one package set per area — plan of record: `docs/spring-migration-plan.md`. Areas: the Quick Capture Inbox (`/api/hub/inbox-items`, cutover pending) and H-Vault (`/api/hub/vault`), which stores browser-encrypted ciphertext only and requires MFA — read `docs/vault-design.md` before changing it. Its tables have their own Flyway migrations and history (`db/hub-migration`, `flyway_hub_schema_history`).
 - `finance-api` — personal finance (H-Space money / Luyra) API secured by `security-api`'s JWT. Currently a scaffold with no domain tables — read `docs/finance-api.md` before adding any.
-- `legacy/spring-jwt-auth/` — archived standalone project, **not** in `settings.gradle`, not part of the build. Reference only, don't extend it.
 
 Shared dependency versions/config live in the root `build.gradle` (`subprojects { }`), not per-module.
