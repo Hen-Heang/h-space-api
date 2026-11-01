@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,8 +29,13 @@ public class UserController extends BaseController {
     @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
     @PatchMapping("/{id}")
     public Object updateUser(
-            @PathVariable UUID id, @Valid @RequestBody UpdateUserRequest updateUserRequest) {
-        return ok(userService.updateUser(id, updateUserRequest));
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserRequest updateUserRequest,
+            Authentication authentication) {
+        boolean callerIsAdmin =
+                authentication.getAuthorities().stream()
+                        .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        return ok(userService.updateUser(id, updateUserRequest, callerIsAdmin));
     }
 
     @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
