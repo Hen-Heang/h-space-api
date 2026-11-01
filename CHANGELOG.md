@@ -8,6 +8,17 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- `hub-api` module (port 8084, `/api/hub/**`) with the H-Vault backend
+  (`/api/hub/vault`): a per-user keyset holding the wrapped vault key and
+  encrypted items, stored as browser-made v2 ciphertext only, with MFA
+  required, owner-only access (another user's item is 404), optimistic
+  versioning across devices, audit events without content, and an hourly
+  purge for deleted accounts. Own Flyway migrations and history table.
+  Design and the gates before real passwords: `docs/vault-design.md`.
+- `security-api`: malformed or unexpected JSON bodies answer 400 instead of
+  500; `BusinessException` responses carry their specific message in
+  `status.message`; writes to `/api/hub/vault/keyset` and
+  `/api/hub/vault/reset` are rate-limited like the auth endpoints.
 - `api-core` can be published as `com.henheang:api-core`
   (`./gradlew :api-core:publishToMavenLocal`) for reuse by other APIs.
 - `local` / `dev` / `test` / `prod` Spring configuration profiles for
