@@ -64,10 +64,12 @@ jobs:
             */build/reports/jacoco/
           retention-days: 7
 
-  # Builds the security-api image and boots it against a throwaway Postgres.
-  # On PRs that's a check only; on main / release tags the image is pushed to
-  # GHCR first and the smoke check runs against the published digest, so the
-  # recorded image@digest is one that's known to start.
+
+  # Builds each runnable image (same Dockerfile, MODULE build arg) and boots it
+  # against a throwaway Postgres. On PRs that's a check only; on main / release
+  # tags the image is pushed to GHCR first and the smoke check runs against
+  # the published digest, so the recorded image@digest is one that's known to
+  # start.
   image:
     needs: build
     runs-on: ubuntu-latest
@@ -76,11 +78,19 @@ jobs:
       contents: read
       packages: write
 
+    strategy:
+      fail-fast: false
+      matrix:
+        # mem: the limit deploy/compose.prod.yaml gives the module.
+        include:
+          - module: security-api
+            mem: 768m
+          - module: hub-api
+            mem: 640m
+
     env:
       PUBLISH: ${{ github.event_name == 'push' }}
-
-    outputs:
-      image_ref: ${{ steps.reference.outputs.image_ref }}
+      MODULE: ${{ matrix.module }}
 
     steps:
       - name: Checkout
@@ -100,7 +110,7 @@ jobs:
         id: image
         env:
           REPOSITORY: ${{ github.repository }}
-        run: printf 'name=ghcr.io/%s/security-api\n' "${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: printf 'name=ghcr.io/%s/%s\n' "${REPOSITORY,,}" "$MODULE" >> "$GITHUB_OUTPUT"
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4.4.1
@@ -133,20 +143,22 @@ jobs:
         with:
           context: .
           platforms: linux/amd64
+          build-args: MODULE=${{ matrix.module }}
           push: ${{ env.PUBLISH == 'true' }}
           load: ${{ env.PUBLISH != 'true' }}
-          tags: ${{ env.PUBLISH == 'true' && steps.meta.outputs.tags || 'security-api:ci' }}
+          tags: ${{ env.PUBLISH == 'true' && steps.meta.outputs.tags || format('{0}:ci', matrix.module) }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=security-api
-          cache-to: type=gha,mode=max,scope=security-api
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.module }}
 
       # Boots the image the way deploy/compose.prod.yaml runs it: prod profile,
-      # 768 MB limit, a TLS-enabled Postgres (like Neon/Supabase) and a DB_URL
-      # without sslmode. The secrets are random throwaways; nothing from this
-      # stack outlives the job.
+      # its memory limit, a TLS-enabled Postgres (like Neon/Supabase) and a
+      # DB_URL without sslmode. The secrets are random throwaways; nothing from
+      # this stack outlives the job.
       - name: Smoke check (boot against Postgres, expect health UP)
         env:
-          IMAGE: ${{ env.PUBLISH == 'true' && format('{0}@{1}', steps.image.outputs.name, steps.push.outputs.digest) || 'security-api:ci' }}
+          IMAGE: ${{ env.PUBLISH == 'true' && format('{0}@{1}', steps.image.outputs.name, steps.push.outputs.digest) || format('{0}:ci', matrix.module) }}
+          MEM: ${{ matrix.mem }}
         run: |
           set -euo pipefail
           if [[ "$PUBLISH" == "true" ]]; then docker pull "$IMAGE"; fi
@@ -159,14 +171,21 @@ jobs:
             -c ssl_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem \
             -c ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
           until docker exec smoke-db pg_isready -U postgres -d jwt_auth -q; do sleep 1; done
+          extra=()
+          if [[ "$MODULE" == "hub-api" ]]; then
+            # In prod security-api migrates its own schema first. There's no
+            # security-api here, so let hub-api run those migrations too.
+            extra+=(-e HUB_FLYWAY_RUN_SECURITY_MIGRATIONS=true)
+          fi
           docker run -d --name smoke-api --network smoke -p 127.0.0.1:8080:8080 \
-            --memory 768m \
+            --memory "$MEM" \
             -e SPRING_PROFILES_ACTIVE=prod \
             -e DB_URL=jdbc:postgresql://smoke-db:5432/jwt_auth \
             -e DB_USERNAME=postgres -e DB_PASSWORD=smoke \
             -e JWT_SECRET="$(openssl rand -base64 64 | tr -d '\n')" \
             -e MFA_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
             -e CORS_ALLOWED_ORIGINS=https://smoke.invalid \
+            "${extra[@]}" \
             "$IMAGE"
           curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 \
             http://127.0.0.1:8080/actuator/health | tee /dev/stderr | grep -q '"status":"UP"'
@@ -182,17 +201,24 @@ jobs:
             "SELECT bool_and(s.ssl), count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid)
              WHERE a.application_name = 'PostgreSQL JDBC Driver'" \
             | tee /dev/stderr | grep -qx 't|[1-9][0-9]*'
+          if [[ "$MODULE" == "hub-api" ]]; then
+            # The vault tables came from hub-api's own migration history, and
+            # the vault answers - but only to a signed-in caller.
+            docker exec smoke-db psql -U postgres -d jwt_auth -tAc \
+              "SELECT count(*) FROM flyway_hub_schema_history WHERE script = 'V1__vault.sql' AND success" \
+              | tee /dev/stderr | grep -qx 1
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/hub/vault/items)
+            echo "unauthenticated /api/hub/vault/items: $code"; [[ "$code" == "401" ]]
+          fi
 
       - name: Record verified image reference
-        id: reference
         if: env.PUBLISH == 'true'
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
           IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          printf 'image_ref=%s@%s\n' "$IMAGE_NAME" "$IMAGE_DIGEST" >> "$GITHUB_OUTPUT"
           # Backticks below are Markdown for the summary, not shell.
           # shellcheck disable=SC2016
-          printf 'Verified image: `%s@%s`\n\nTags:\n```\n%s\n```\n' \
-            "$IMAGE_NAME" "$IMAGE_DIGEST" "$TAGS" >> "$GITHUB_STEP_SUMMARY"
+          printf '### %s\n\nVerified image: `%s@%s`\n\nTags:\n```\n%s\n```\n' \
+            "$MODULE" "$IMAGE_NAME" "$IMAGE_DIGEST" "$TAGS" >> "$GITHUB_STEP_SUMMARY"
