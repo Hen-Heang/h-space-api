@@ -1,6 +1,7 @@
 # Moving H-Space data from Supabase to Spring
 
-Status: **Phase 0 done, Phase 1 (Inbox) built — not cut over.** Started 2026-10-30.
+Status: **Phase 0 done, Phase 1 (Inbox) built and `hub-api` deployed to
+production (2026-11-01) — Inbox data not cut over yet.** Started 2026-10-30.
 
 Sign-in is already Spring-only (`security-api`). What still runs on Supabase is
 the H-Space web app's **data**: every feature reads and writes Supabase tables
@@ -59,7 +60,7 @@ map of the live database — never commit it.
 | Phase | Areas (Supabase tables) | Extra work | Status |
 |---|---|---|---|
 | **0 Groundwork** | — | `hub-api` module, conventions D1–D7, live schema snapshot, frontend `hspaceRequest` (401 → refresh once → retry), data-source flag pattern | **Done** (see below) |
-| **1 Pilot: Inbox** | `kori_inbox_items` | Ask-Hengo memory search reads the inbox from `hub-api` when flagged | **Built + tested; cutover pending** |
+| **1 Pilot: Inbox** | `kori_inbox_items` | Ask-Hengo memory search reads the inbox from `hub-api` when flagged | **Built + tested + deployed; cutover pending** |
 | 2 Small personal areas | Journal + manual activities (`kori_journal_entries`, `kori_manual_activities`); Notes (`kori_notes`); Memories (`kori_memory_candidates`); Habits (`kori_habits`, `kori_habit_checkins`) | Full-text search columns (Notes, Journal) like the Inbox; Ask-Hengo retrieval per area | Not started |
 | 2b Reminders | `kori_reminders`, `kori_push_subscriptions`, `kori_push_config`, `kori_telegram_link_codes`, `kori_telegram_links`, `kori_public_holidays` | Replace the `pg_cron` jobs with Spring `@Scheduled` jobs; `kori_next_reminder_run` as service code; Telegram bot token and VAPID keys to Spring config (env/secret store, not Supabase Vault) | Not started |
 | 3 Goals & tasks | `goals`, `tasks`, `goal_members`, `goal_stars`, `notifications`, `goal_key_results`, `goal_evidence`, `goal_reviews`, `goal_plan_phases`, `goal_schedule_rules` | The 6 goal-sharing/notification RPCs become service methods with explicit member/owner checks (shared goals are the one place ownership isn't just `user_id`) — write each access rule from scratch and test it, rather than translating the SQL; bucket `goal-themes`; drop the cross-store `goal_id` caveat on Inbox | Not started |

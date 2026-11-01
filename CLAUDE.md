@@ -15,11 +15,11 @@ Multi-module Gradle/Spring Boot monorepo. Group `com.henheang`, Java 17, Spring 
 
 ## Product mission
 
-The API is the security and backend-engineering foundation for **H-Space**, a private-by-default daily personal hub. Its core experiences are My Apps, goals/tasks, reminders, finance integration (Luyra), Hengo Learning, and a **future** credential vault. The objective is an actually useful daily app and disciplined Java/Spring Boot/PostgreSQL/DevOps practice, not feature-count-driven demos. Cross-repo context: [H-Space web](https://github.com/Hen-Heang/h-space) and [H-Space Notion hub](https://app.notion.com/p/3b9acd8b74508151ac22ecff24718832).
+The API is the security and backend-engineering foundation for **H-Space**, a private-by-default daily personal hub. Its core experiences are My Apps, goals/tasks, reminders, finance integration (Luyra), Hengo Learning, and the H-Vault credential vault (live since 2026-11-01, independent review still pending — see `docs/vault-design.md`). The objective is an actually useful daily app and disciplined Java/Spring Boot/PostgreSQL/DevOps practice, not feature-count-driven demos. Cross-repo context: [H-Space web](https://github.com/Hen-Heang/h-space) and [H-Space Notion hub](https://app.notion.com/p/3b9acd8b74508151ac22ecff24718832).
 
 ## Boundaries and current integration
 
-- `api-core` -> `security-api` -> `open-api` is the one-way module dependency order. Do not reintroduce `legacy/spring-jwt-auth`.
+- `api-core` -> `security-api` -> `open-api` / `finance-api` / `hub-api` is the one-way module dependency order. Do not reintroduce `legacy/spring-jwt-auth`.
 - `security-api` currently handles web authentication (email/username password, emailed sign-in code, verified Google ID token, JWT access tokens (`jwt.expiration`, 24h by default), rotating refresh tokens, optional TOTP MFA, backup codes, RBAC, rate limiting, and audit logs). **Read current implementation and `docs/security-api-state.md` before modifying auth.** Do not resurrect removed custom OTP or cookie-based OAuth2 code.
 - Existing H-Space web feature records are still in Supabase with RLS, not automatically owned by this API. The Supabase JWT bridge and account import are temporary migration compatibility. `open-api` todo endpoints are a **sample**, not a verified frontend integration.
 - Before moving goals, tasks, reminders, finances, or vault records to Spring, document who owns the data, the API contract, UUID/user mapping, RLS/authorization replacement, reconciliation and rollback plan; implement a small tested vertical slice first.
@@ -28,6 +28,7 @@ The API is the security and backend-engineering foundation for **H-Space**, a pr
 ## Vault and authentication safety gate
 
 - A real credential vault must **not** be shipped from an ordinary CRUD schema. First document a threat model, cross-device recovery model, encryption boundaries, and obtain independent cryptographic/security review. Never save or log real vault passwords before that review.
+- **Current exception (2026-11-01):** the owner turned H-Vault on in production and imported real accounts before the review (`docs/vault-design.md` §10). The review is still required. Until it's done, don't widen the vault (new secret fields, sharing, exports, admin access to vault rows), don't claim zero-knowledge, and treat findings as fixes to ship, possibly with re-encryption.
 - Separate account authentication from vault encryption. Target client-side authenticated encryption with unique nonces and versioned, reviewed key derivation; server stores ciphertext only. Do not claim zero-knowledge without validating the entire design. Hash login passwords with a slow, salted password hash; do not use that hash as a vault encryption key.
 - Reuse existing TOTP MFA for authenticator-app enrollment and verification. Email codes are helpful for sign-in/email verification but are not a substitute for an independent possession factor. Add step-up checks to sensitive actions as needed. Rate-limit login, code checks, vault unlock attempts, and recovery flows; do not log code or secret contents.
 - Keep private data out of tests, prompts, AI logs, Notion, and analytics. Secrets only through secure environment configuration or a secret store; never ship example/fallback secrets in production.

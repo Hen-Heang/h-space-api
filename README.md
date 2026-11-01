@@ -19,8 +19,8 @@ modules that other services build on top of.
 
 ## Module Architecture
 
-H-Space API is a Gradle multi-project build with three modules. Dependencies flow in
-one direction only (no cycles):
+H-Space API is a Gradle multi-project build. Dependencies flow in one
+direction only (no cycles):
 
 ```
 api-core   (base library — shared utilities, no app of its own)
@@ -29,7 +29,7 @@ api-core   (base library — shared utilities, no app of its own)
 security-api (authentication service — JWT, Google login, MFA, audit)  ── runnable
     ▲
     │
-open-api     (sample business API protected by security-api)           ── runnable
+open-api / finance-api / hub-api   (siblings, each protected by security-api) ── runnable
 ```
 
 | Module         | Port  | bootJar | Purpose |
@@ -38,6 +38,7 @@ open-api     (sample business API protected by security-api)           ── ru
 | `security-api` | 8080  | ✅ on   | Core authentication service: signup/login, JWT issue/refresh/revocation, Google ID-token login, MFA (TOTP + backup codes), email verification, password reset, account lockout/unlock, RBAC (roles/permissions), user management, audit logging, rate limiting, Swagger UI. |
 | `open-api`      | 8082  | ✅ on   | Example business API (to-do lists/items) that depends on `security-api` for authentication. |
 | `finance-api`   | 8083  | ✅ on   | Personal finance API (scaffold, no endpoints yet — see `docs/finance-api.md`), secured by `security-api`'s JWT. |
+| `hub-api`       | 8084  | ✅ on   | Personal-hub data moving off Supabase (`/api/hub/**`): H-Vault (`/api/hub/vault`, browser-encrypted ciphertext only, MFA required — `docs/vault-design.md`) and the Quick Capture Inbox (`/api/hub/inbox-items`). Own Flyway history (`flyway_hub_schema_history`). Deployed next to `security-api` (`docs/deploy-vps.md` §15). |
 
 Dependency wiring lives in the **root `build.gradle`** (`subprojects { ... }`
 plus per-project blocks), so most dependencies are declared once at the top.
