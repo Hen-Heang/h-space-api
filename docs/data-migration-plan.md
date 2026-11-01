@@ -33,6 +33,10 @@ area has moved, then is deleted.
 | 4 | **Reminders** (`kori_reminders` + its scheduled job) | Needs a Spring scheduler; after 3, since it checks goal/task existence. |
 | 5+ | Korean study data, inbox, journal, … | One area at a time, same template. Finance follows `docs/finance-api.md`. |
 
+H-Vault isn't in this list: it has no Supabase data (its table was never
+created), so it's built directly on Spring. Design and gates:
+`docs/vault-design.md`.
+
 Each area gets its own section below, filled in from the template before any
 code is written.
 

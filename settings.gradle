@@ -3,4 +3,5 @@ include 'security-api'
 include 'open-api'
 include 'api-core'
 include 'finance-api'
+include 'hub-api'
 

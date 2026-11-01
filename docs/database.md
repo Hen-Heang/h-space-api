@@ -19,6 +19,14 @@
   `security-api` test run on a fresh database.
 - `finance-api` tests use Flyway + `validate` (like `security-api`), in their
   own schema `finance_api_test`.
+- `hub-api` has its **own** migrations (`hub-api/src/main/resources/db/hub-migration/`,
+  currently `V1__vault.sql`) and history table `flyway_hub_schema_history`, so
+  its version numbers never collide with `security-api`'s. Its tables live in
+  the same database and may reference `users(id)`. Locally and in tests it
+  also runs `security-api`'s migrations first
+  (`hub.flyway.run-security-migrations`, default true); in `prod` that's off,
+  so `security-api` must have migrated before `hub-api` starts. Tests run in
+  schema `hub_api_test`. See `HubFlywayConfig`.
 - `jwt.secret` has a fallback default only in `local`/`dev`/`test` profiles
   for convenience; `prod` has no fallback and fails fast at startup if
   `JWT_SECRET` isn't set — externalize via env var for anything beyond local,

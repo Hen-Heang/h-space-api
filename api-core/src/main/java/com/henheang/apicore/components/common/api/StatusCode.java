@@ -15,6 +15,7 @@ public enum StatusCode {
 
     // 403 Forbidden
     FORBIDDEN(40300, "Forbidden", 403),
+    VAULT_MFA_REQUIRED(40301, "Turn on authenticator-app MFA to use the vault", 403),
 
     // 400 Bad Request & Validation Errors
     BAD_REQUEST(40000, "Bad Request", 400),
