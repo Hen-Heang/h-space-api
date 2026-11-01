@@ -339,8 +339,15 @@ holds no data. Before real users:
   Store dumps off the VPS (its 20 GB disk is not a backup location), and
   treat them as sensitive: they contain password hashes and encrypted TOTP
   secrets.
-- **Rehearse a restore** into a scratch database (e.g. a Neon branch) with
-  `pg_restore --no-owner -d <scratch-database> <file>.dump`.
+- **Rehearse a restore** into a scratch database (e.g. a Neon branch, or a
+  throwaway `postgres:17` container) with
+  `pg_restore --no-owner --no-privileges -d <scratch-database> <file>.dump`.
+  A Neon dump carries grants to Neon's own roles (`neon_superuser`,
+  `cloud_admin`); without `--no-privileges` a restore anywhere else stops
+  with `role "neon_superuser" does not exist`. To check the restore, compare
+  row counts and an `md5(string_agg(... order by id))` of the vault tables
+  against production. Last drill: 2026-11-01 (Neon branch and file dump
+  both matched).
 - Keep `MFA_ENCRYPTION_KEY` with the backups' credentials: a restore without
   it leaves MFA users unable to sign in.
 
