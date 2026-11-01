@@ -42,6 +42,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
                     "/api/auth/mfa/disable",
                     "/api/auth/mfa/verify",
                     "/api/auth/mfa/backup-codes/regenerate");
+    // Limited on writes only: reading the keyset happens on every vault unlock,
+    // but replacing it or wiping the vault should never happen in bursts.
+    private static final Set<String> LIMITED_WRITE_PATHS =
+            Set.of("/api/hub/vault/keyset", "/api/hub/vault/reset");
     private static final int CAPACITY = 5;
     private static final Duration REFILL_PERIOD = Duration.ofMinutes(1);
 
@@ -55,7 +59,10 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain)
             throws ServletException, IOException {
         String path = request.getRequestURI();
-        if (!LIMITED_PATHS.contains(path)) {
+        boolean limited =
+                LIMITED_PATHS.contains(path)
+                        || (LIMITED_WRITE_PATHS.contains(path) && !isRead(request));
+        if (!limited) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -71,6 +78,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         response.setContentType("application/json");
         ApiResponse<?> body = ApiResponse.builder().status(StatusCode.TOO_MANY_REQUESTS).build();
         objectMapper.writeValue(response.getWriter(), body);
+    }
+
+    private static boolean isRead(HttpServletRequest request) {
+        String method = request.getMethod();
+        return "GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method);
     }
 
     private Bucket newBucket() {
