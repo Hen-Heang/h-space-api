@@ -25,8 +25,10 @@ curl localhost:8080/actuator/health   # {"status":"UP"} once Flyway has migrated
 docker compose down                # keep data; add -v to drop the postgres-data volume
 ```
 
-- The image (`Dockerfile`) packages `security-api` only; tests are not run
-  during `docker build` — CI's `./gradlew clean build` is the gate.
+- The image (`Dockerfile`) packages one module, `security-api` by default
+  (`--build-arg MODULE=hub-api` for hub-api), always listening on 8080;
+  tests are not run during `docker build` — CI's `./gradlew clean build` is
+  the gate.
 - Compose runs the `dev` profile (override with `COMPOSE_SPRING_PROFILE`);
   `local` can't work in a container because `application-local.yml` is
   git-ignored and excluded by `.dockerignore`.
@@ -44,8 +46,9 @@ after `build` passes and boots it against a throwaway Postgres, expecting
 
 - **Pull requests** — build + smoke check only; nothing is pushed.
 - **Push to `main`** — pushed to `ghcr.io/hen-heang/h-space-api/security-api`
-  as `latest` and `sha-<full commit>`, then the smoke check runs against the
-  pushed digest.
+  and `.../hub-api` as `latest` and `sha-<full commit>`, then each smoke
+  check runs against its pushed digest (hub-api's also checks its vault
+  migration and that `/api/hub/vault/items` refuses an anonymous call).
 - **Release tag `vX.Y.Z`** — also tagged `vX.Y.Z` and `vX.Y`; `latest` only
   moves on `main`.
 

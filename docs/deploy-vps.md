@@ -456,3 +456,71 @@ If a secret leaked, change it immediately and follow `SECURITY.md`.
 - [ ] Deployed by digest, previous digest noted
 - [ ] Owner account created and MFA enabled on it
 - [ ] Uptime monitor on `/actuator/health/liveness` (§11)
+- [ ] H-Vault only: hub-api running on the same release, `/api/hub/vault/items`
+      answers 401, and the vault's security review done before real passwords (§15)
+
+## 15. Run hub-api (H-Vault's backend)
+
+`hub-api` serves `/api/hub/*` (the H-Vault endpoints, `docs/vault-design.md`).
+It is **opt-in**: the `hub` compose profile starts it, and without the
+profile the stack is exactly security-api + Caddy as before. It shares the
+database and `JWT_SECRET` with security-api and runs only its own migrations
+(`db/hub-migration`, history table `flyway_hub_schema_history`).
+
+> Deploying it doesn't make the vault usable for real secrets: the web app
+> keeps `/vault` in demo mode until `NEXT_PUBLIC_FEATURE_VAULT_LIVE` is
+> turned on, which waits for the independent security review
+> (`docs/vault-design.md` §9–10).
+
+**Same release as security-api.** hub-api contains security-api's code and
+checks its tables at startup, but leaves migrating them to security-api. So
+always run both images from the **same CI run** (same `sha-<commit>`), and
+start security-api on it first — compose does that via `depends_on`.
+
+1. **Make the image pullable.** CI publishes `ghcr.io/<owner>/h-space-api/hub-api`
+   next to `security-api`. A new GHCR package starts private: make it public
+   like security-api (§4), or rely on the server's `docker login`.
+2. **Back up first.** The first start creates two tables (`vault_keysets`,
+   `vault_items`). Purely additive, but take a dump anyway (§8).
+3. **Copy the updated deploy files** (§5 `rsync`): this release changes
+   `Caddyfile` (routes `/api/hub/*`) and `compose.prod.yaml`.
+4. **Set the images and the profile** in `.env` — both digests from the same
+   CI run summary:
+
+   ```bash
+   cd /opt/h-space
+   nano .env
+   #   API_IMAGE=ghcr.io/hen-heang/h-space-api/security-api@sha256:...
+   #   HUB_IMAGE=ghcr.io/hen-heang/h-space-api/hub-api@sha256:...
+   #   COMPOSE_PROFILES=hub
+   docker compose -f compose.prod.yaml up -d
+   docker compose -f compose.prod.yaml ps          # security-api, hub-api, caddy: healthy/up
+   ```
+
+   Caddy reads its config at start; if it was already running, the `up -d`
+   recreates it because the mounted `Caddyfile` changed — if not, run
+   `docker compose -f compose.prod.yaml restart caddy`.
+5. **Verify** (no account needed):
+
+   ```bash
+   curl -s https://api.yourdomain.com/actuator/health                  # UP (security-api)
+   curl -s -o /dev/null -w '%{http_code}\n' https://api.yourdomain.com/api/hub/vault/items   # 401
+   docker compose -f compose.prod.yaml logs hub-api | grep -E "Started|ERROR"
+   docker stats --no-stream                                             # hub-api under its 640 MiB limit
+   ```
+
+   `401` means the request reached hub-api and was refused without a token —
+   the route works. `502` means hub-api isn't running.
+
+**Updating:** set both `API_IMAGE` and `HUB_IMAGE` to the new run's digests,
+then `up -d` (§9). **Rolling back:** put both previous digests back. **Turning
+it off:** remove `COMPOSE_PROFILES=hub` from `.env` and run
+`docker compose -f compose.prod.yaml --profile hub rm -sf hub-api`;
+`/api/hub/*` then answers 502 and nothing else changes. The vault
+tables stay in the database.
+
+Memory on the 2 GB server (measured just after start; both settle lower
+once idle): security-api ~400 MB (limit 768 MB), hub-api ~380 MB (limit
+640 MB, heap ~380 MB), Caddy ~15 MB — about 0.8 GB in all. Limits are
+ceilings, not reservations. If it gets tight, check `docker stats` and
+`free -h` (§11); swap absorbs short peaks.
