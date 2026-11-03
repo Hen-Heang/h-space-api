@@ -25,10 +25,12 @@ Full list: `ROADMAP.md` (informal, living, not a commitment/timeline).
 
 ## Explicitly out of scope right now
 
-- Feature work in `security-api`/`open-api` beyond finishing the OTP/OAuth2
-  removal and MFA/audit/rate-limiting work already in progress on `main`
-  (`docs/security-api-state.md`). Do not resurrect removed OTP/OAuth2
-  classes even if a roadmap item seems to imply reviving them.
+- Widening H-Vault (new secret fields, sharing, export, admin access) before
+  the independent security review (`docs/vault-design.md` §9).
+- Moving a Supabase domain to Spring without the ownership/contract/
+  rollback plan in `docs/spring-migration-plan.md`.
+- Resurrecting removed OTP/OAuth2 classes, even if a roadmap item seems to
+  imply reviving them (`docs/security-api-state.md`).
 
 ## How to use this
 

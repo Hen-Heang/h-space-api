@@ -21,8 +21,12 @@ default local creds `postgres`/`123`.
   without that, its create-drop dropped `security-api`'s tables in `public`
   and the next `security-api` test run failed on a fresh database.
 - Any entity change that affects the schema needs a new
-  `V{n}__description.sql` file — see `.claude/prompts/migration.md` for the
+  `V{n}__description.sql` file — see `.claude/commands/migration.md` for the
   step-by-step. Never edit an already-applied migration file; add a new one.
+- `hub-api` has its own migrations (`hub-api/src/main/resources/db/hub-migration/`,
+  history table `flyway_hub_schema_history`) with their own version numbers;
+  it runs `security-api`'s migrations first locally/in tests, not in `prod`
+  (`HubFlywayConfig`). `finance-api` tests also use Flyway + `validate`.
 
 ## Secrets
 

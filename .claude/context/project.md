@@ -1,9 +1,9 @@
 # Project Context
 
-H-Space API is a multi-module Spring Boot monorepo providing a reusable
-authentication service (`security-api`) plus a sample business API
-(`open-api`) that demonstrates consuming it. `api-core` is the shared base
-library both depend on.
+H-Space API is a multi-module Spring Boot monorepo: the authentication
+service (`security-api`), the personal-hub data API (`hub-api`, incl.
+H-Vault), a finance API scaffold (`finance-api`) and a sample business API
+(`open-api`). `api-core` is the shared base library they all depend on.
 
 Core capabilities in `security-api`: JWT auth (issue/refresh/revocation),
 Google ID-token login, MFA (TOTP + one-time backup codes), email
@@ -22,8 +22,11 @@ RBAC (roles/permissions), audit logging, rate limiting, Swagger UI.
   "Done" section and `.claude/context/roadmap.md`.
 - No versioned releases yet — everything is `0.0.1-SNAPSHOT`, changes
   accumulate under `CHANGELOG.md`'s `[Unreleased]` section.
-- Feature work beyond the OTP/OAuth2 refactor is explicitly deferred until
-  the foundation pass is reviewed (`ROADMAP.md`).
+- Beyond auth, the repo now has `hub-api` (Quick Capture Inbox, and H-Vault —
+  live with real data since 2026-11-01, security review pending; see
+  `.claude/rules/vault.md`) and a `finance-api` scaffold. Moving more H-Space
+  data off Supabase follows `docs/spring-migration-plan.md`, one small tested
+  vertical slice at a time.
 
 ## Known, deliberate rough edges (don't "fix" without asking)
 

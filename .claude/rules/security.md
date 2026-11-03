@@ -35,6 +35,14 @@ files first (`Glob security-api/src/main/java/**/*.java`).
 - Stale references to either (in code, docs, or tests) should be flagged as
   drift, not treated as the current pattern to follow.
 
+## H-Vault and temporary Supabase code
+
+- H-Vault (`hub-api`) has its own rule file: `.claude/rules/vault.md`.
+- The Supabase JWT bridge and account import (`SupabaseBridge*`,
+  `SupabaseUserImport*`, `security/supabase/`) are temporary migration
+  code. Don't build new features on them, and never log the Supabase JWT
+  secret, service-role key or minted tokens.
+
 ## Reporting
 
 Security issues go through `SECURITY.md`'s process, not a public GitHub
