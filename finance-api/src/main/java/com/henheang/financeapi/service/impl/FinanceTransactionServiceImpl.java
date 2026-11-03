@@ -137,12 +137,16 @@ public class FinanceTransactionServiceImpl implements FinanceTransactionService 
             return new BulkTransactionResponse(transactionRepository.deleteAllForUser(userId, ids));
         }
 
+        // categoryId is a three-state Optional: absent (null) is an error,
+        // an explicit JSON null (empty) clears the category. Comparing it to
+        // null is intentional - don't "fix" it to isEmpty().
         if (request.getCategoryId() == null) {
             throw new BadRequestException("categoryId is required to recategorize");
         }
         UUID categoryId = request.getCategoryId().orElse(null);
         FinanceCategory category = ownedCategory(userId, categoryId);
         List<FinanceTransaction> rows = transactionRepository.lockAllForUser(userId, ids);
+        // category is null when clearing, so there is no type to check.
         if (category != null && !BOTH.equals(category.getType())) {
             boolean mismatch = rows.stream().anyMatch(t -> !category.getType().equals(t.getType()));
             if (mismatch) {
