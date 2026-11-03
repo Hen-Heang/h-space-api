@@ -8,7 +8,9 @@ const { execFileSync } = require('child_process');
 // not text that merely mentions it (a commit message, an echo).
 const LEAD = String.raw`(?:^|[;&|(]\s*|\n\s*)`;
 const GIT = new RegExp(LEAD + String.raw`git\s+(?:-C\s+("[^"]+"|'[^']+'|\S+)\s+)?(commit|push)\b`);
-const PUSH_MAIN = new RegExp(LEAD + String.raw`git\s+(?:-C\s+\S+\s+)?push\b[^|;&\n]*[\s:]main\b`);
+const PUSH_MAIN = new RegExp(
+  LEAD + String.raw`git\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)\s+)?push\b[^|;&\n]*[\s:]main\b`
+);
 const CD = new RegExp(LEAD + String.raw`cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*&&[^\n]*?\bgit\s`);
 
 const unquote = (s) => (s ? s.replace(/^["']|["']$/g, '') : s);

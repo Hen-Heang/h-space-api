@@ -26,11 +26,13 @@ process.stdin.on('end', () => {
       'database URL with password',
     ],
   ];
-  // Non-empty secret-ish assignments in env/properties files (yml uses ${VAR:...} so is skipped).
+  // Non-placeholder secret-ish assignments in env/properties files (yml uses ${VAR:...} so is skipped).
   const isEnvLike = /(^|\/)(\.env[^/]*|[^/]+\.env|[^/]+\.properties)$/.test(file);
-  const isExample = /\.example$|example\.|\.sample$/.test(file);
-  if (isEnvLike && !isExample) {
-    patterns.push([/^\s*[A-Z0-9_]*(SECRET|PASSWORD|_KEY|TOKEN)[A-Z0-9_]*\s*=\s*\S{8,}/m, 'secret assignment']);
+  if (isEnvLike) {
+    patterns.push([
+      /^\s*[A-Z0-9_]*(SECRET|PASSWORD|_KEY|TOKEN)[A-Z0-9_]*\s*=\s*(?!\s*(?:$|#|""|''|\$\{[^}]+\}|<[^>]+>|CHANGEME|(?:REPLACE|YOUR|CHANGE|EXAMPLE|PLACEHOLDER|FILL|INSERT)[_-][A-Z0-9_${}-]+\s*(?:#.*)?$))\S{8,}/im,
+      'secret assignment',
+    ]);
   }
 
   for (const [re, what] of patterns) {
