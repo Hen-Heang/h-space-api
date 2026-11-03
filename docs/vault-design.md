@@ -194,8 +194,14 @@ as-is.
 
 - The user comes **only** from the JWT principal. `user_id` is never read from
   a body or path. Every repository method takes `userId` (`findByIdAndUserId`,
-  …); there is no unscoped finder, and admins have no endpoint to read
-  another user's vault.
+  …), and admins have no endpoint to read another user's vault. The build
+  enforces this: `UserScopedRepositoryArchTest` (rules in security-api's test
+  fixtures, `UserScopedRepositoryRules`) fails on any repository method
+  without a used `userId` and on any call to an inherited owner-blind method
+  (`findById`, `findAll`, `count`, …). Its only exemptions: keyset
+  `findById`/`existsById` (the keyset's primary key *is* `user_id`), the
+  global item-id `existsById` uniqueness check (a boolean, the same answer
+  whoever owns the id), and the `deleteForDeletedUsers` purges.
 - **MFA required** (D3): every vault endpoint checks `users.mfa_enabled` for
   the caller and refuses with 403 otherwise. Turning MFA off doesn't delete
   the vault; it just becomes unreachable until MFA is turned on again.

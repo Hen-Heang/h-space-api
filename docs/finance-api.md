@@ -30,7 +30,10 @@ How it works:
   `V1__finance_lookups.sql` and `V2__finance_transactions.sql`. V2 needs
   **PostgreSQL 15+** for `ON DELETE SET NULL (recurring_id)`.
 - **Ownership.** Every repository finder takes the caller's user id from
-  the JWT. Another user's id answers 404.
+  the JWT. Another user's id answers 404. `UserScopedRepositoryArchTest`
+  enforces it at build time, with no exemptions: each repository method
+  must take and use `userId`, and nothing may call an inherited owner-blind
+  method (`findById`, `findAll`, `count`, `deleteById`, …).
 - **Duplicate names.** A name the user already has (ignoring case)
   answers 409. The service pre-checks it, and the unique index
   `(user_id, lower(name))` backs it up. The index violation is recognized
