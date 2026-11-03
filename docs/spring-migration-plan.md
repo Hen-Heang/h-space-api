@@ -120,10 +120,23 @@ PATCH values, delete, unauthenticated → 401). Frontend:
 `lib/api/hspace-http.test.ts`, `lib/api/inbox.test.ts`,
 `lib/server/hspace-inbox.test.ts`.
 
-**Known gap:** malformed JSON or a non-UUID path id returns 500, not 400:
-`GlobalExceptionHandler` has no handler for `HttpMessageNotReadableException`
-or `MethodArgumentTypeMismatchException` (audit finding 1.6). Fix it there,
-for every module, as its own change.
+~~**Known gap:** malformed JSON or a non-UUID path id returns 500~~ — fixed
+(audit finding 1.6). `GlobalExceptionHandler` now answers these for every
+module:
+
+| Error | Status |
+|---|---|
+| Malformed JSON | 400 |
+| Wrong-type path/query value | 400 |
+| Missing parameter | 400 |
+| Constraint violation | 400 |
+| Unique / foreign-key violation | 409 |
+| Other data-integrity violation | 400 |
+
+None of these responses echoes the input, SQL or constraint detail. An
+unexpected error is still 500, but now with only the generic message: the
+old catch-all returned `ex.getMessage()`. The catch-all logs the exception
+type and request, not the message.
 
 ### Inbox cutover runbook
 

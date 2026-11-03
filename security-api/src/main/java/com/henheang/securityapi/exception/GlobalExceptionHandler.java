@@ -4,8 +4,12 @@ import com.henheang.apicore.components.common.api.ApiResponse;
 import com.henheang.apicore.components.common.api.ApiStatus;
 import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.apicore.components.common.api.StatusCode;
+import jakarta.validation.ConstraintViolationException;
+import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,13 +19,19 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+@Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String UNIQUE_VIOLATION = "23505";
+    private static final String FOREIGN_KEY_VIOLATION = "23503";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(
@@ -151,17 +161,106 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
     }
 
+    // A path or query value of the wrong type, e.g. /items/not-a-uuid. The
+    // offending value isn't echoed back.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException ex) {
+        return badRequest("Invalid value for '" + ex.getName() + "'.");
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingParameter(
+            MissingServletRequestParameterException ex) {
+        return badRequest("Missing required parameter '" + ex.getParameterName() + "'.");
+    }
+
+    // Bean Validation outside a @Valid body (e.g. @Validated services). Same
+    // shape as MethodArgumentNotValidException: messages in status.message,
+    // a per-property map in data. Constraint messages are written by us, so
+    // they're safe to return; the rejected values are not included.
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleConstraintViolation(
+            ConstraintViolationException ex) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        ex.getConstraintViolations()
+                .forEach(
+                        violation ->
+                                errors.putIfAbsent(
+                                        lastNode(violation.getPropertyPath().toString()),
+                                        violation.getMessage()));
+        ApiResponse<Object> apiResponse =
+                new ApiResponse<>(
+                        new ApiStatus(
+                                StatusCode.BAD_REQUEST.getCode(),
+                                String.join(" ", errors.values())),
+                        errors);
+        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    // A database constraint the service didn't check first. Never return the
+    // driver's message: it quotes SQL, constraint names and the conflicting
+    // values (e.g. "Key (user_id, lower(name))=(..., food) already exists").
+    // A unique or foreign-key violation is a conflict with existing data;
+    // anything else (NOT NULL, CHECK) is invalid input that got past
+    // validation.
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, WebRequest request) {
+        String sqlState = sqlState(ex);
+        log.warn(
+                "Data integrity violation (SQLState {}) on {}",
+                sqlState,
+                request.getDescription(false));
+        if (UNIQUE_VIOLATION.equals(sqlState) || FOREIGN_KEY_VIOLATION.equals(sqlState)) {
+            String message = "The request conflicts with existing data.";
+            ApiResponse<Object> apiResponse =
+                    new ApiResponse<>(
+                            new ApiStatus(StatusCode.CONFLICT.getCode(), message), message);
+            return new ResponseEntity<>(apiResponse, HttpStatus.CONFLICT);
+        }
+        return badRequest("The request contains invalid data.");
+    }
+
+    // Anything unexpected. The client gets the generic message only -
+    // exception messages can carry SQL, file paths or user data. The log
+    // records the type and request, not the message, for the same reason.
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGlobalException(
             Exception ex, WebRequest request) {
+        log.error("Unhandled {} on {}", ex.getClass().getName(), request.getDescription(false));
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
                                 ExitCode.SYSTEM_ERROR.getCode(),
                                 ExitCode.SYSTEM_ERROR.getMessage()),
-                        ex.getMessage());
+                        ExitCode.SYSTEM_ERROR.getMessage());
 
         return new ResponseEntity<>(apiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private static ResponseEntity<ApiResponse<Object>> badRequest(String message) {
+        ApiResponse<Object> apiResponse =
+                new ApiResponse<>(
+                        new ApiStatus(StatusCode.BAD_REQUEST.getCode(), message), message);
+        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    private static String lastNode(String propertyPath) {
+        int dot = propertyPath.lastIndexOf('.');
+        return dot < 0 ? propertyPath : propertyPath.substring(dot + 1);
+    }
+
+    private static String sqlState(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && sql.getSQLState() != null) {
+                return sql.getSQLState();
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return "unknown";
     }
 
     @ExceptionHandler(BusinessException.class)
