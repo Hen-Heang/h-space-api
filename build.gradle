@@ -10,6 +10,8 @@ ext {
     mapstructVersion = '1.5.5.Final'
     springdocVersion = '2.8.6'
     jjwtVersion = '0.11.5'
+    // Architecture tests (security-api test fixtures, used by hub-api and finance-api).
+    archunitVersion = '1.4.1'
 }
 
 allprojects {
@@ -115,9 +117,17 @@ project(':api-core') {
 
 // Configure security-api module
 project(':security-api') {
+    // Test fixtures: test-only helpers that other modules reuse. Holds
+    // UserScopedRepositoryRules, the userId-scoping guard that hub-api's and
+    // finance-api's tests run against their repositories.
+    apply plugin: 'java-test-fixtures'
+
     dependencies {
         // Depend on api-core
         implementation project(':api-core')
+
+        testFixturesApi "com.tngtech.archunit:archunit:${archunitVersion}"
+        testFixturesImplementation 'org.springframework.data:spring-data-jpa'
 
         // Schema migrations - the only schema authority now (see
         // docs/database.md); ddl-auto is "validate" in every profile.
@@ -208,6 +218,9 @@ project(':finance-api') {
         implementation 'org.flywaydb:flyway-database-postgresql'
 
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+        // UserScopedRepositoryRules (see UserScopedRepositoryArchTest)
+        testImplementation testFixtures(project(':security-api'))
     }
 }
 
@@ -233,5 +246,8 @@ project(':hub-api') {
         implementation 'org.flywaydb:flyway-database-postgresql'
 
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+        // UserScopedRepositoryRules (see UserScopedRepositoryArchTest)
+        testImplementation testFixtures(project(':security-api'))
     }
 }
