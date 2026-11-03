@@ -12,6 +12,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.exception.BusinessException;
+import java.net.ServerSocket;
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -98,5 +100,35 @@ class SupabaseAdminClientTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(StatusCode.CONFLICT);
+    }
+
+    @Test
+    void aSupabaseThatNeverAnswers_timesOutAs502_withoutLeakingTheUrlOrId() throws Exception {
+        // Accepts the TCP connection (the OS does, from the backlog) but never replies.
+        try (ServerSocket silent = new ServerSocket(0)) {
+            String url = "http://127.0.0.1:" + silent.getLocalPort();
+            SupabaseAdminClient client =
+                    new SupabaseAdminClient(
+                            RestClient.builder(),
+                            url,
+                            "key",
+                            Duration.ofSeconds(2),
+                            Duration.ofMillis(300));
+
+            long started = System.nanoTime();
+            assertThatThrownBy(() -> client.userExists(USER_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(
+                            e -> {
+                                BusinessException be = (BusinessException) e;
+                                assertThat(be.getErrorCode()).isEqualTo(StatusCode.BAD_GATEWAY);
+                                assertThat(be.getMessage())
+                                        .doesNotContain("127.0.0.1")
+                                        .doesNotContain(USER_ID.toString());
+                            });
+            // Without a read timeout this call would block forever.
+            assertThat(Duration.ofNanos(System.nanoTime() - started))
+                    .isLessThan(Duration.ofSeconds(5));
+        }
     }
 }

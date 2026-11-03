@@ -2,12 +2,18 @@ package com.henheang.securityapi.security.supabase;
 
 import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.exception.BusinessException;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -21,21 +27,47 @@ import org.springframework.web.client.RestClientResponseException;
  * RLS-scoped writes can succeed. Delete together with the bridge once H-Space no longer reads
  * Supabase.
  */
+@Slf4j
 @Component
 public class SupabaseAdminClient {
 
     private final RestClient restClient;
     private final String serviceRoleKey;
 
+    /**
+     * With connect and read timeouts: this is called inside {@code POST /api/auth/supabase-token},
+     * and without them a slow or unreachable Supabase would hang that request - and its server
+     * thread - indefinitely. A timeout surfaces as 502 like any other upstream failure.
+     */
+    @Autowired
     public SupabaseAdminClient(
             RestClient.Builder restClientBuilder,
             @Value("${supabase.url:}") String supabaseUrl,
-            @Value("${supabase.service-role-key:}") String serviceRoleKey) {
+            @Value("${supabase.service-role-key:}") String serviceRoleKey,
+            @Value("${supabase.connect-timeout:5s}") Duration connectTimeout,
+            @Value("${supabase.read-timeout:10s}") Duration readTimeout) {
+        this(
+                restClientBuilder.requestFactory(requestFactory(connectTimeout, readTimeout)),
+                supabaseUrl,
+                serviceRoleKey);
+    }
+
+    // Takes the builder as-is, so a test can bind MockRestServiceServer to it.
+    SupabaseAdminClient(
+            RestClient.Builder restClientBuilder, String supabaseUrl, String serviceRoleKey) {
         this.serviceRoleKey = serviceRoleKey;
         this.restClient =
                 restClientBuilder
                         .baseUrl(StringUtils.trimTrailingCharacter(supabaseUrl.trim(), '/'))
                         .build();
+    }
+
+    private static ClientHttpRequestFactory requestFactory(
+            Duration connectTimeout, Duration readTimeout) {
+        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+        factory.setReadTimeout(readTimeout);
+        return factory;
     }
 
     /** Whether {@code auth.users} already has a row with this id. */
@@ -98,8 +130,16 @@ public class SupabaseAdminClient {
         }
     }
 
+    // The exception's message isn't passed on: for an I/O error it names the
+    // Supabase project URL and the request path (with the user's id). The log
+    // gets the type and, for an HTTP error, the status - not the body.
     private BusinessException upstreamError(Exception e) {
+        if (e instanceof RestClientResponseException response) {
+            log.warn("Supabase Auth answered {}", response.getStatusCode().value());
+        } else {
+            log.warn("Couldn't reach Supabase Auth: {}", e.getClass().getSimpleName());
+        }
         return new BusinessException(
-                StatusCode.BAD_GATEWAY, "Couldn't reach Supabase Auth: " + e.getMessage());
+                StatusCode.BAD_GATEWAY, "Couldn't reach Supabase Auth. Please try again.");
     }
 }
