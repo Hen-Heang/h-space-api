@@ -41,4 +41,13 @@ public class VaultKeysetRequest extends StrictRequest {
     private String recoveryWrappedKey;
 
     private Long version;
+
+    /**
+     * Step-up for <em>replacing</em> a keyset (master-password change, recovery): a current
+     * authenticator code or a backup code. Not needed to create the first keyset, which can't lose
+     * anything. Verified whenever sent; required on replacement once {@code
+     * hub.vault.step-up-required} is on. Not stored anywhere.
+     */
+    @Pattern(regexp = VaultFormats.MFA_CODE, message = "mfaCode must be a 6-digit or backup code.")
+    private String mfaCode;
 }

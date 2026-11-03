@@ -265,6 +265,7 @@ nano .env
 | `MAIL_USERNAME`, `MAIL_PASSWORD` | recommended | SMTP account (Gmail app password). |
 | `OWNER_EMAIL` | recommended | Becomes admin once verified. |
 | `DB_POOL_MAX_SIZE`, `DB_POOL_MIN_IDLE` | no | Default 5 / 1. |
+| `VAULT_STEP_UP_REQUIRED` | no | hub-api. Default `false`. Set `true` only once the web app sends `mfaCode` for vault reset and keyset replacement (`docs/vault-design.md` §8). |
 | `API_MEM_LIMIT` | no | Default `768m`; the heap is 60% of it. |
 | `SIGNUP_MODE`, `GOOGLE_CLIENT_IDS`, `API_DOCS_ENABLED`, `SUPABASE_*`, `SPRING_FLYWAY_*` | no | See comments in `prod.env.example`. |
 

@@ -47,6 +47,12 @@ hub:
     # touching the database; prod turns it off so only security-api
     # migrates its own schema. See HubFlywayConfig.
     run-security-migrations: ${HUB_RUN_SECURITY_MIGRATIONS:true}
+  vault:
+    # Step-up (a fresh authenticator or backup code) for vault reset and
+    # keyset replacement. A code that is sent is always verified; this makes
+    # one mandatory. Turn on only after the web app sends `mfaCode`, or
+    # master-password change and reset break for the current client.
+    step-up-required: ${VAULT_STEP_UP_REQUIRED:false}
 
 # Same as security-api: /actuator/health (plus /liveness and /readiness) is
 # the only exposed actuator endpoint, public and detail-free. The container

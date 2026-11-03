@@ -169,8 +169,8 @@ required, email verified (already enforced by `JwtAuthenticationFilter`).
 | Method + path | Body | Returns |
 |---|---|---|
 | `GET /keyset` | — | `{kdf, kdfIterations, kdfSalt, wrappedKey, recoveryWrappedKey, version}` or 404 if not set up |
-| `PUT /keyset` | same fields + `version` (absent on first create) | keyset; 409 on version mismatch |
-| `POST /reset` | `{confirm: "RESET"}` | 204; deletes keyset + all ciphertext in one transaction |
+| `PUT /keyset` | same fields + `version` (absent on first create) + `mfaCode` (step-up, when replacing) | keyset; 409 on version mismatch |
+| `POST /reset` | `{confirm: "RESET", mfaCode}` | 204; deletes keyset + all ciphertext in one transaction |
 | `GET /items` | — | `VaultItem[]`, newest `updatedAt` first |
 | `POST /items` | `{id, payloadCiphertext}` | `VaultItem` (201); 409 if the id exists |
 | `PUT /items/{id}` | `{payloadCiphertext, version}` | `VaultItem`; 409 on version mismatch |
@@ -190,6 +190,11 @@ malformed JSON), 401 no or invalid token, **404 for another user's item**
 no keyset yet, vault full), 429 rate limited. `status.message` is safe to show
 as-is.
 
+**Step-up** (reset and keyset *replacement* only): `mfaCode` is a current
+authenticator code or a backup code. All 403s: **40302** code required,
+**40303** wrong or already-used code, **40304** locked by too many wrong
+secrets. Never 401, which the web app treats as signed out.
+
 ## 8. Server-side rules
 
 - The user comes **only** from the JWT principal. `user_id` is never read from
@@ -205,6 +210,20 @@ as-is.
 - **MFA required** (D3): every vault endpoint checks `users.mfa_enabled` for
   the caller and refuses with 403 otherwise. Turning MFA off doesn't delete
   the vault; it just becomes unreachable until MFA is turned on again.
+- **Step-up for destructive actions**: `mfa_enabled` only says the account
+  *has* MFA, and a session lives for days (24 h access, 7-day refresh). So
+  reset and keyset replacement, either of which can make every item
+  unreadable, also take a fresh code (`mfaCode`), checked by security-api's
+  `MfaStepUpService`. It applies the sign-in rules: an authenticator code is
+  accepted once (time step claimed), a backup code is consumed, and a wrong
+  code counts toward the account lock shared with wrong passwords. It runs in
+  its own transaction, so the count survives the vault rejecting the
+  request. Creating the first keyset needs no code (nothing to lose).
+  **Rollout**: a code that is sent is always verified, but it's only
+  *required* once `hub.vault.step-up-required` (`VAULT_STEP_UP_REQUIRED`) is
+  `true`, which defaults to off. Turn it on after the web app sends
+  `mfaCode` on master-password change, recovery and reset; turning it on
+  first breaks those three for the current client.
 - **Allowlisted fields only** (a request DTO, never the entity). Unknown
   fields are rejected with 400.
 - **Validation**: ciphertext must match the v2 pattern and size limits; the
