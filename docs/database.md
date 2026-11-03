@@ -18,7 +18,13 @@
   create-drop would drop `security-api`'s tables in `public` and fail the next
   `security-api` test run on a fresh database.
 - `finance-api` tests use Flyway + `validate` (like `security-api`), in their
-  own schema `finance_api_test`.
+  own schema `finance_api_test`. Like `hub-api`, `finance-api` has its own
+  migrations (`finance-api/src/main/resources/db/finance-migration/`,
+  currently `V1__finance_lookups.sql`) and history table
+  `flyway_finance_schema_history` (`FinanceFlywayConfig`). Locally and in
+  tests it runs `security-api`'s migrations first
+  (`finance.flyway.run-security-migrations`, default true); in `prod` that
+  is off, so `security-api` must migrate first.
 - `hub-api` has its **own** migrations (`hub-api/src/main/resources/db/hub-migration/`,
   currently `V1__vault.sql`, `V2__inbox_items.sql`) and history table `flyway_hub_schema_history`, so
   its version numbers never collide with `security-api`'s. Its tables live in

@@ -198,9 +198,12 @@ project(':finance-api') {
         implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
         implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
         implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+        // Controllers take security-api's UserPrincipal, which implements
+        // OAuth2User, so that type must be on the compile classpath.
+        implementation 'org.springframework.security:spring-security-oauth2-core'
 
-        // Flyway runs security-api's migrations; finance tables will get
-        // their own migrations here once the data ownership is documented.
+        // finance-api's own migrations (db/finance-migration) run with their
+        // own history table; see FinanceFlywayConfig and docs/finance/.
         implementation 'org.flywaydb:flyway-core'
         implementation 'org.flywaydb:flyway-database-postgresql'
 
