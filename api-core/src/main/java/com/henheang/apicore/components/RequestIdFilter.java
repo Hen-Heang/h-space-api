@@ -46,6 +46,11 @@ public class RequestIdFilter extends OncePerRequestFilter {
         }
     }
 
+    /** The current request's id, or null outside a request (a scheduled job, startup). */
+    public static String current() {
+        return MDC.get(MDC_KEY);
+    }
+
     static String resolve(String incoming) {
         if (incoming != null && SAFE_ID.matcher(incoming).matches()) {
             return incoming;

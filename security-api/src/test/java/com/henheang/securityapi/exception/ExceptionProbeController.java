@@ -1,5 +1,7 @@
 package com.henheang.securityapi.exception;
 
+import com.henheang.apicore.components.common.api.ApiResponse;
+import com.henheang.apicore.components.common.api.StatusCode;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -25,6 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 class ExceptionProbeController {
 
     static final String CANARY = "canary-secret-detail";
+
+    @GetMapping("/ok")
+    ApiResponse<String> ok() {
+        return ApiResponse.<String>builder().status(StatusCode.SUCCESS).data("ok").build();
+    }
 
     @GetMapping("/uuid/{id}")
     String uuid(@PathVariable UUID id) {

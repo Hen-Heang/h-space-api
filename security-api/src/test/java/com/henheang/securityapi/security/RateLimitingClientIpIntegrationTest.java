@@ -43,13 +43,31 @@ class RateLimitingClientIpIntegrationTest {
         assertThat(post("203.0.113.21")).isNotEqualTo(429);
     }
 
+    @Test
+    void the429Body_carriesTheRequestId() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            send("203.0.113.40", "rl-ref-" + i);
+        }
+        HttpResponse<String> limited = send("203.0.113.40", "rl-ref-final");
+
+        assertThat(limited.statusCode()).isEqualTo(429);
+        assertThat(limited.headers().firstValue("X-Request-Id")).hasValue("rl-ref-final");
+        assertThat(limited.body()).contains("\"requestId\":\"rl-ref-final\"");
+    }
+
     private int post(String forwardedFor) throws Exception {
-        HttpRequest request =
+        return send(forwardedFor, null).statusCode();
+    }
+
+    private HttpResponse<String> send(String forwardedFor, String requestId) throws Exception {
+        HttpRequest.Builder request =
                 HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + LIMITED_PATH))
                         .header("Content-Type", "application/json")
                         .header("X-Forwarded-For", forwardedFor)
-                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                        .build();
-        return http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
+                        .POST(HttpRequest.BodyPublishers.ofString("{}"));
+        if (requestId != null) {
+            request.header("X-Request-Id", requestId);
+        }
+        return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 }

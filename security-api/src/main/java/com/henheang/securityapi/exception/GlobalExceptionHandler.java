@@ -1,5 +1,6 @@
 package com.henheang.securityapi.exception;
 
+import com.henheang.apicore.components.RequestIdFilter;
 import com.henheang.apicore.components.common.api.ApiResponse;
 import com.henheang.apicore.components.common.api.ApiStatus;
 import com.henheang.apicore.components.common.api.ExitCode;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -43,7 +45,7 @@ public class GlobalExceptionHandler {
                         new ApiStatus(StatusCode.NOT_FOUND.getCode(), ex.getMessage()),
                         ex.getMessage());
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
+        return respond(apiResponse, HttpStatus.NOT_FOUND);
     }
 
     // A URL nothing handles (a typo, a scanner probing /wp-admin, the API docs
@@ -55,7 +57,7 @@ public class GlobalExceptionHandler {
                 new ApiResponse<>(
                         new ApiStatus(StatusCode.NOT_FOUND), StatusCode.NOT_FOUND.getMessage());
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.NOT_FOUND);
+        return respond(apiResponse, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(BadRequestException.class)
@@ -65,7 +67,7 @@ public class GlobalExceptionHandler {
                 new ApiResponse<>(
                         new ApiStatus(StatusCode.BAD_REQUEST.getCode(), ex.getMessage()),
                         ex.getMessage());
-        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        return respond(apiResponse, HttpStatus.BAD_REQUEST);
     }
 
     // Malformed JSON, a wrong type, or a field a strict request type rejects.
@@ -78,7 +80,7 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(StatusCode.BAD_REQUEST.getCode(), message), message);
-        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        return respond(apiResponse, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -91,7 +93,7 @@ public class GlobalExceptionHandler {
                                 ExitCode.AUTHENTICATION_FAILED.getMessage()),
                         ex.getMessage());
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.UNAUTHORIZED);
+        return respond(apiResponse, HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
@@ -104,7 +106,7 @@ public class GlobalExceptionHandler {
                                 ExitCode.INVALID_CREDENTIALS.getMessage()),
                         ex.getMessage());
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.UNAUTHORIZED);
+        return respond(apiResponse, HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -117,7 +119,7 @@ public class GlobalExceptionHandler {
                                 ExitCode.INSUFFICIENT_PERMISSIONS.getMessage()),
                         ex.getMessage());
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.FORBIDDEN);
+        return respond(apiResponse, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
@@ -130,7 +132,7 @@ public class GlobalExceptionHandler {
                                 ExitCode.SYSTEM_ERROR.getMessage()),
                         "This record was modified by someone else - please reload and try again.");
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.CONFLICT);
+        return respond(apiResponse, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -158,7 +160,7 @@ public class GlobalExceptionHandler {
                                 String.join(" ", errors.values())),
                         errors);
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        return respond(apiResponse, HttpStatus.BAD_REQUEST);
     }
 
     // A path or query value of the wrong type, e.g. /items/not-a-uuid. The
@@ -195,7 +197,7 @@ public class GlobalExceptionHandler {
                                 StatusCode.BAD_REQUEST.getCode(),
                                 String.join(" ", errors.values())),
                         errors);
-        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        return respond(apiResponse, HttpStatus.BAD_REQUEST);
     }
 
     // A database constraint the service didn't check first. Never return the
@@ -217,7 +219,7 @@ public class GlobalExceptionHandler {
             ApiResponse<Object> apiResponse =
                     new ApiResponse<>(
                             new ApiStatus(StatusCode.CONFLICT.getCode(), message), message);
-            return new ResponseEntity<>(apiResponse, HttpStatus.CONFLICT);
+            return respond(apiResponse, HttpStatus.CONFLICT);
         }
         return badRequest("The request contains invalid data.");
     }
@@ -236,14 +238,22 @@ public class GlobalExceptionHandler {
                                 ExitCode.SYSTEM_ERROR.getMessage()),
                         ExitCode.SYSTEM_ERROR.getMessage());
 
-        return new ResponseEntity<>(apiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+        return respond(apiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     private static ResponseEntity<ApiResponse<Object>> badRequest(String message) {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(StatusCode.BAD_REQUEST.getCode(), message), message);
-        return new ResponseEntity<>(apiResponse, HttpStatus.BAD_REQUEST);
+        return respond(apiResponse, HttpStatus.BAD_REQUEST);
+    }
+
+    // Every error body carries the request's id (also in the X-Request-Id
+    // header), so "Error ref: ..." in the web app leads straight to the logs.
+    private static ResponseEntity<ApiResponse<Object>> respond(
+            ApiResponse<Object> body, HttpStatusCode status) {
+        body.getStatusCode().setRequestId(RequestIdFilter.current());
+        return new ResponseEntity<>(body, status);
     }
 
     private static String lastNode(String propertyPath) {
@@ -274,8 +284,7 @@ public class GlobalExceptionHandler {
                         new ApiStatus(ex.getErrorCode().getCode(), ex.getMessage()),
                         ex.getBody() != null ? ex.getBody() : ex.getMessage());
 
-        return new ResponseEntity<>(
-                apiResponse, HttpStatus.valueOf(ex.getErrorCode().getHttpCode()));
+        return respond(apiResponse, HttpStatus.valueOf(ex.getErrorCode().getHttpCode()));
     }
 
     @ExceptionHandler(AuthException.class)
@@ -289,7 +298,7 @@ public class GlobalExceptionHandler {
                         new ApiStatus(ex.getExitCode().getCode(), ex.getMessage()),
                         ex.getMessage());
 
-        return new ResponseEntity<>(apiResponse, getHttpStatusForExitCode(ex.getExitCode()));
+        return respond(apiResponse, getHttpStatusForExitCode(ex.getExitCode()));
     }
 
     private HttpStatus getHttpStatusForExitCode(ExitCode exitCode) {

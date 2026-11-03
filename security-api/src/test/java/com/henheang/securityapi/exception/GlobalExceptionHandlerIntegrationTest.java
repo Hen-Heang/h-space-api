@@ -2,13 +2,17 @@ package com.henheang.securityapi.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.henheang.apicore.components.RequestIdFilter;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -101,5 +105,37 @@ class GlobalExceptionHandlerIntegrationTest {
                 .andExpect(jsonPath("$.status.code").value(5000))
                 .andExpect(jsonPath("$.status.message").value("System error"))
                 .andExpect(jsonPath("$.data").value("System error"));
+    }
+
+    @Test
+    void errorBodiesCarryTheRequestId_matchingTheHeader() throws Exception {
+        String body =
+                mockMvc.perform(get(PROBE + "/boom").header(RequestIdFilter.HEADER, "err-ref-42"))
+                        .andExpect(status().isInternalServerError())
+                        .andExpect(header().string(RequestIdFilter.HEADER, "err-ref-42"))
+                        .andExpect(jsonPath("$.status.requestId").value("err-ref-42"))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        assertThat(body).contains("err-ref-42");
+    }
+
+    @Test
+    void errorBodyCarriesTheGeneratedId_whenTheClientSentNone() throws Exception {
+        MockHttpServletResponse response =
+                mockMvc.perform(get(PROBE + "/check")).andReturn().getResponse();
+        String header = response.getHeader(RequestIdFilter.HEADER);
+
+        assertThat(header).isNotBlank();
+        assertThat(JsonPath.<String>read(response.getContentAsString(), "$.status.requestId"))
+                .isEqualTo(header);
+    }
+
+    @Test
+    void successEnvelopesAreUnchanged_noRequestIdField() throws Exception {
+        mockMvc.perform(get(PROBE + "/ok"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status.code").value(200))
+                .andExpect(jsonPath("$.status.requestId").doesNotExist());
     }
 }
