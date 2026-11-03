@@ -216,8 +216,9 @@ Copy this into the PR for every area that moves.
   routes from Supabase `auth.getUser` to verifying the h-space-api token: either
   call `GET /api/auth/user`, or have `security-api` sign with an asymmetric key
   and publish it (JWKS) so routes verify locally. Decide then.
-- **`finance-api`** — under D1, finance becomes a package in `hub-api` rather
-  than its own app; fold the scaffold in when finance work starts.
+- ~~**`finance-api`** — under D1, finance becomes a package in `hub-api`~~ —
+  superseded 2026-11-03: Luyra finance moves into the separate
+  `finance-api` module. Plan of record: `docs/finance/`.
 - **Local run** — `hub-api` has no committed `local` profile settings; copy
   `security-api`'s git-ignored `application-local.yml` to
   `hub-api/src/main/resources/application-local.yml` (also git-ignored) so
