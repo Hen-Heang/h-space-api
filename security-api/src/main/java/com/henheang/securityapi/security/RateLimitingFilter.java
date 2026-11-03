@@ -1,6 +1,7 @@
 package com.henheang.securityapi.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.henheang.apicore.components.RequestIdFilter;
 import com.henheang.apicore.components.common.api.ApiResponse;
 import com.henheang.apicore.components.common.api.StatusCode;
 import io.github.bucket4j.Bandwidth;
@@ -77,6 +78,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         response.setStatus(StatusCode.TOO_MANY_REQUESTS.getHttpCode());
         response.setContentType("application/json");
         ApiResponse<?> body = ApiResponse.builder().status(StatusCode.TOO_MANY_REQUESTS).build();
+        // Written here, not by GlobalExceptionHandler, so add the request id the same way.
+        body.getStatusCode().setRequestId(RequestIdFilter.current());
         objectMapper.writeValue(response.getWriter(), body);
     }
 

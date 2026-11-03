@@ -265,6 +265,9 @@ nano .env
 | `MAIL_USERNAME`, `MAIL_PASSWORD` | recommended | SMTP account (Gmail app password). |
 | `OWNER_EMAIL` | recommended | Becomes admin once verified. |
 | `DB_POOL_MAX_SIZE`, `DB_POOL_MIN_IDLE` | no | Default 5 / 1. |
+| `DB_TRANSACTION_TIMEOUT` | no | Default `30s`: the deadline for each transaction; its queries are cancelled after it and the request answers 503. Flyway isn't affected. |
+| `MAIL_CONNECT_TIMEOUT_MS`, `MAIL_READ_TIMEOUT_MS`, `MAIL_WRITE_TIMEOUT_MS` | no | Default `10000` each. Mail is sent inside the request, so these cap how long a stalled SMTP server can hold it. |
+| `SUPABASE_CONNECT_TIMEOUT`, `SUPABASE_READ_TIMEOUT` | no | Default `5s` / `10s` for the temporary Supabase bridge's admin calls; a timeout answers 502. |
 | `API_MEM_LIMIT` | no | Default `768m`; the heap is 60% of it. |
 | `SIGNUP_MODE`, `GOOGLE_CLIENT_IDS`, `API_DOCS_ENABLED`, `SUPABASE_*`, `SPRING_FLYWAY_*` | no | See comments in `prod.env.example`. |
 
