@@ -20,6 +20,7 @@ class FinanceApiApplicationTests {
 
     @Test
     void financeEndpointsRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/api/finance/v1/accounts")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/finance/categories")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/finance/payment-methods")).andExpect(status().isUnauthorized());
     }
 }
