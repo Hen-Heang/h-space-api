@@ -1,2 +1,23 @@
-  [mcp_servers.idea]
-    url = "http://127.0.0.1:64342/stream"
+# Project-level Codex config for h-space-api. Loaded on top of
+# ~/.codex/config.toml when this project is trusted (E:\API is).
+# Rules for agents live in AGENTS.md; command denials in .codex/rules/.
+
+# Edit files only inside this repo; ask before anything outside the sandbox
+# (network for a fresh Gradle download, writes elsewhere, etc.).
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[sandbox_workspace_write]
+# Off by default: an agent session has no reason to reach the network.
+# Gradle with a warm cache builds offline; on a cold cache Codex will ask.
+network_access = false
+
+[shell_environment_policy]
+# Don't hand secrets from the parent shell (JWT_SECRET, DB_PASSWORD,
+# SUPABASE_SERVICE_ROLE_KEY, MFA_ENCRYPTION_KEY, GH tokens...) to commands
+# Codex runs. Tests use application-test.yml's fixed, non-sensitive values.
+inherit = "all"
+exclude = ["*SECRET*", "*PASSWORD*", "*TOKEN*", "*_KEY", "*API_KEY*", "DB_URL", "SUPABASE_*", "GH_*", "GITHUB_*"]
+
+[mcp_servers.idea]
+url = "http://127.0.0.1:64342/stream"
