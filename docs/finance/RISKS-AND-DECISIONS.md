@@ -42,7 +42,7 @@ Abbreviations: L = likelihood, I = impact, H = high, M = medium, L = low.
 | R7 | A partial write (contribution without the balance update) | L | M | One `@Transactional` method; a rollback test |
 | R8 | Concurrent edits clobber each other | M | M | `@Version` → 409; `ON CONFLICT` upserts; atomic increments |
 | R9 | Month/day boundaries shift (UTC vs Seoul) | M | M | Injected Seoul `Clock`; boundary tests; known UTC spots fixed (DATABASE-SCHEMA §6) |
-| R10 | Error responses leak SQL or constraint text (`GlobalExceptionHandler` catch-all returns `ex.getMessage()`) | H | M | Task 0.5, a separate `security-api` PR, before finance endpoints ship |
+| R10 | Error responses leak SQL or constraint text (`GlobalExceptionHandler` catch-all returns `ex.getMessage()`) | H | M | Task 0.5, a separate `security-api` PR, before finance endpoints ship. **Done in #29**, awaiting merge |
 | R11 | Frontend contract drift (201→200, 422→400, envelope) | M | M | Client adapter + shared JSON snapshots; Vitest in Luyra |
 | R12 | Memory exhaustion on the VPS with a third JVM | M | H | D-11; measure before production |
 | R13 | Leaking production detail into the public repo (Neon ids, live schema dumps, row counts, exports) | M | H | Keep them off-repo (README); **the untracked `Luyra_to_HSpace_Finance_Architecture_Review.md` in the repo root contains Neon project/branch ids and live-schema detail — don't commit it** |
@@ -59,4 +59,4 @@ Abbreviations: L = likelihood, I = impact, H = high, M = medium, L = low.
 | C3 | `luyra:docs/ARCHITECTURE.md` says finance uses its own Supabase project | Stale; `APP-MIGRATION.md` and the code say Neon |
 | C4 | `luyra:docs/FINANCE-GAP-ANALYSIS.md`: "email manual-only", "categories GET-only", "no push", "no service tests" | All stale against the code |
 | C5 | `luyra:docs/DEPLOYMENT.md` cron table vs `vercel.json` | `vercel.json` wins |
-| C6 | `finance-api` prod pool 20 vs `docs/database.md` (5) vs `hub-api` (3) | Align in Phase 1a |
+| C6 | `finance-api` prod pool 20 vs `docs/database.md` (5) vs `hub-api` (3) | **Resolved** in #27: aligned with `hub-api` (3, min-idle 1) |

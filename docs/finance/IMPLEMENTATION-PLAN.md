@@ -34,7 +34,7 @@ Migration files go in `finance-api/src/main/resources/db/finance-migration/`
 | 0.2 Live-schema metadata check on Luyra Neon (read-only catalog queries: `pg_constraint`, `pg_indexes`, `pg_class.relrowsecurity`, `information_schema.columns`) plus **aggregate-only** data-quality counts (DATABASE-SCHEMA §5 pre-checks) | Owner, or Claude with approval | Diff vs DATABASE-SCHEMA.md, kept off-repo; this doc is corrected where it's wrong |
 | 0.3 Identity check (AUTH-AND-DATA-MIGRATION §2) | Owner | Mapping table, kept off-repo |
 | 0.4 Answer decisions D-2…D-14 | Owner | RISKS-AND-DECISIONS.md updated |
-| 0.5 `security-api` `GlobalExceptionHandler`: handle `MethodArgumentTypeMismatchException`, `ConstraintViolationException`, `DataIntegrityViolationException`; stop echoing `ex.getMessage()` in the catch-all (gap G5) | Separate PR | Tests in `security-api` |
+| 0.5 `security-api` `GlobalExceptionHandler`: handle `MethodArgumentTypeMismatchException`, `ConstraintViolationException`, `DataIntegrityViolationException`; stop echoing `ex.getMessage()` in the catch-all (gap G5) | Separate PR | **Done: PR #29** against `main`, CI green, not merged |
 
 **Definition of Done**
 
@@ -55,8 +55,8 @@ Phase 1 is split into **two PRs**.
 
 **1b — Transaction CRUD**
 
-> **Status 2026-11-03: built on branch `feat/finance-transactions`, which
-> is stacked on `feat/finance-lookups`. Not committed yet.**
+> **Status 2026-11-03: PR #28 (`feat/finance-transactions`), stacked on
+> #27. Not merged.**
 > `./gradlew clean build` is green: finance-api has 88 tests and the full
 > build has 305, all passing.
 >
@@ -120,8 +120,8 @@ Phase 1 is split into **two PRs**.
 
 ## Phase 2 — Filtering, bulk operations, suggestions, validation hardening
 
-> **Status 2026-11-03: built on branch `feat/finance-bulk-suggestions`,
-> which is stacked on `feat/finance-transactions`. Not committed yet.**
+> **Status 2026-11-03: PR #30 (`feat/finance-bulk-suggestions`), stacked
+> on #28. Not merged.**
 > `./gradlew clean build` is green: finance-api has 98 tests and the full
 > build has 315, all passing.
 >
@@ -263,8 +263,8 @@ Phase 1 is split into **two PRs**.
 
 ## Recommended first task
 
-> **Status 2026-11-03: built on branch `feat/finance-lookups`, not
-> committed yet.** `./gradlew clean build` is green: finance-api has 36
+> **Status 2026-11-03: PR #27 (`feat/finance-lookups`) against `main`,
+> CI green. Not merged.** `./gradlew clean build` is green: finance-api has 36
 > tests and the full build has 253, all passing.
 >
 > Deviations from the plan below:

@@ -23,7 +23,7 @@ That file's own header comment calls it "the single switch point".
 | Not found | 404 `NOT_FOUND` | 404, `status.message` |
 | Conflict | 409 `CONFLICT` | 409 via `BusinessException(StatusCode.CONFLICT, msg)`, or `OptimisticLockingFailureException` |
 | Unauthenticated | 401 `UNAUTHORIZED` | 401 (`JwtAuthenticationEntryPoint`) |
-| Server error | 500 `INTERNAL_ERROR` | 500. Today it echoes `ex.getMessage()`; fix that first (gap G5) |
+| Server error | 500 `INTERNAL_ERROR` | 500 with a generic message only. The old catch-all echoed `ex.getMessage()`; fixed in #29 (gap G5) |
 
 **Recommended (PROPOSED): keep `ApiResponse` and adapt in the client.**
 `AGENTS.md` requires the envelope, and `hub-api`'s Inbox already set the
@@ -80,7 +80,10 @@ Ids are UUID strings, and `user_id` is never returned.
 
 - 401 when there is no token
 - 404 for another user's id
-- 400 for a malformed body or a non-UUID path id (after G5 is fixed)
+- 400 for a malformed body or a non-UUID path id. The non-UUID case
+  needs #29 (G5); until then it is a 500.
+
+**Built so far:** #1–8 (PR #27), #10–13 (PR #28), #14–15 (PR #30).
 
 ### 3.1 Lookups
 
