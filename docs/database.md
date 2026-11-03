@@ -20,7 +20,9 @@
 - `finance-api` tests use Flyway + `validate` (like `security-api`), in their
   own schema `finance_api_test`. Like `hub-api`, `finance-api` has its own
   migrations (`finance-api/src/main/resources/db/finance-migration/`,
-  currently `V1__finance_lookups.sql`) and history table
+  currently `V1__finance_lookups.sql`, `V2__finance_transactions.sql`;
+  V2 needs PostgreSQL 15+ for a column-list `ON DELETE SET NULL`) and
+  history table
   `flyway_finance_schema_history` (`FinanceFlywayConfig`). Locally and in
   tests it runs `security-api`'s migrations first
   (`finance.flyway.run-security-migrations`, default true); in `prod` that

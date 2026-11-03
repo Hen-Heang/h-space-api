@@ -1,10 +1,12 @@
 package com.henheang.financeapi.service.impl;
 
 import com.henheang.financeapi.domain.FinancePaymentMethod;
+import com.henheang.financeapi.domain.LookupUsage;
 import com.henheang.financeapi.payload.lookup.PaymentMethodPatchRequest;
 import com.henheang.financeapi.payload.lookup.PaymentMethodRequest;
 import com.henheang.financeapi.payload.lookup.PaymentMethodResponse;
 import com.henheang.financeapi.repository.FinancePaymentMethodRepository;
+import com.henheang.financeapi.repository.LookupUsageRepository;
 import com.henheang.financeapi.service.FinancePaymentMethodService;
 import com.henheang.securityapi.exception.BadRequestException;
 import com.henheang.securityapi.exception.ResourceNotFoundException;
@@ -25,6 +27,7 @@ public class FinancePaymentMethodServiceImpl implements FinancePaymentMethodServ
     private static final String NOUN = "payment method";
 
     private final FinancePaymentMethodRepository paymentMethodRepository;
+    private final LookupUsageRepository usageRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -65,12 +68,24 @@ public class FinancePaymentMethodServiceImpl implements FinancePaymentMethodServ
         return PaymentMethodResponse.from(save(paymentMethod));
     }
 
-    // Phase 1a: nothing references a payment method yet; see
-    // FinanceCategoryServiceImpl.delete for what V2 must add.
+    // Same in-use rule as FinanceCategoryServiceImpl.delete.
     @Override
     @Transactional
     public void delete(UUID userId, UUID id) {
-        paymentMethodRepository.delete(findOwned(userId, id));
+        FinancePaymentMethod paymentMethod = findOwned(userId, id);
+        LookupUsage usage = usageRepository.countPaymentMethodUsage(userId, id);
+        if (usage.total() > 0) {
+            throw LookupRules.inUse(paymentMethod.getName(), usage);
+        }
+        try {
+            paymentMethodRepository.delete(paymentMethod);
+            paymentMethodRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            if (LookupRules.isForeignKeyViolation(ex)) {
+                throw LookupRules.inUse(paymentMethod.getName());
+            }
+            throw ex;
+        }
     }
 
     private FinancePaymentMethod findOwned(UUID userId, UUID id) {

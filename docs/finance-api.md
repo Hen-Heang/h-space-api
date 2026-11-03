@@ -7,9 +7,8 @@ backend is moving. It runs on port 8083 and is secured by
 
 ## Current state
 
-**Phase 1a is built on a branch and not merged yet.** It contains
-categories and payment methods, from `docs/finance/API-CONTRACT.md`
-#1–8:
+**Phases 1a, 1b and 2 are built on stacked branches and not merged
+yet.** They cover API-CONTRACT #1–8 and #10–15:
 
 | Path | Methods |
 |---|---|
@@ -17,14 +16,19 @@ categories and payment methods, from `docs/finance/API-CONTRACT.md`
 | `/api/finance/categories/{id}` | `PATCH`, `DELETE` |
 | `/api/finance/payment-methods` | `GET`, `POST` |
 | `/api/finance/payment-methods/{id}` | `PATCH`, `DELETE` |
+| `/api/finance/transactions` | `GET` (filters, sort, 20 per page), `POST` |
+| `/api/finance/transactions/{id}` | `PATCH` (full replace, like Luyra), `DELETE` |
+| `/api/finance/transactions/bulk` | `POST`: delete or recategorize up to 200, in one transaction |
+| `/api/finance/transactions/suggestions` | `GET`: description autocomplete, last 365 Seoul days, max 6 |
 
 How it works:
 
 - **Migrations.** Its own Flyway history: `db/finance-migration`, table
   `flyway_finance_schema_history`, set up in `FinanceFlywayConfig`. In
   prod, `finance.flyway.run-security-migrations` is false, so
-  `security-api` must migrate first. Migration so far:
-  `V1__finance_lookups.sql`.
+  `security-api` must migrate first. Migrations so far:
+  `V1__finance_lookups.sql` and `V2__finance_transactions.sql`. V2 needs
+  **PostgreSQL 15+** for `ON DELETE SET NULL (recurring_id)`.
 - **Ownership.** Every repository finder takes the caller's user id from
   the JWT. Another user's id answers 404.
 - **Duplicate names.** A name the user already has (ignoring case)
@@ -32,10 +36,20 @@ How it works:
   `(user_id, lower(name))` backs it up. The index violation is recognized
   by SQLState too, because Hibernate can't parse constraint names from a
   non-English Postgres server.
-- **Deletes.** They don't check usage yet, because nothing references
-  these tables until V2 (transactions).
-- **No money yet.** This slice has no monetary fields. Amounts arrive
-  with transactions (Phase 1b) as `BigDecimal` / `NUMERIC`.
+- **References are the owner's own.** A transaction can only point at its
+  owner's category, payment method or recurring rule. The service checks
+  this (404 otherwise), and composite foreign keys `(x_id, user_id)` back
+  it up in the database. The category's type must fit the transaction.
+- **Deletes.** A category or payment method still used by transactions
+  or recurring rules answers 409 with the counts, in Luyra's wording.
+- **Money** is `BigDecimal` ↔ `NUMERIC` end to end:
+  - KRW is whole won (`NUMERIC(14,0)`).
+  - USD keeps its original amount (2 decimals) and rate (6 decimals).
+  - A USD entry's KRW is computed once, in `KrwConverter`, as
+    `original × rate` with `HALF_UP`. Any KRW figure the client sends
+    for a USD entry is ignored.
+  - This can be ₩1 above Luyra's floating-point result at an exact half
+    (D-7). `KrwConverterTest` pins that case.
 
 ## Plan of record
 

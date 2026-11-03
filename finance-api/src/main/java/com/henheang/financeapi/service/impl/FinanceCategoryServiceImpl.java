@@ -1,10 +1,12 @@
 package com.henheang.financeapi.service.impl;
 
 import com.henheang.financeapi.domain.FinanceCategory;
+import com.henheang.financeapi.domain.LookupUsage;
 import com.henheang.financeapi.payload.lookup.CategoryPatchRequest;
 import com.henheang.financeapi.payload.lookup.CategoryRequest;
 import com.henheang.financeapi.payload.lookup.CategoryResponse;
 import com.henheang.financeapi.repository.FinanceCategoryRepository;
+import com.henheang.financeapi.repository.LookupUsageRepository;
 import com.henheang.financeapi.service.FinanceCategoryService;
 import com.henheang.securityapi.exception.BadRequestException;
 import com.henheang.securityapi.exception.ResourceNotFoundException;
@@ -26,6 +28,7 @@ public class FinanceCategoryServiceImpl implements FinanceCategoryService {
     private static final String NOUN = "category";
 
     private final FinanceCategoryRepository categoryRepository;
+    private final LookupUsageRepository usageRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -78,14 +81,26 @@ public class FinanceCategoryServiceImpl implements FinanceCategoryService {
         return CategoryResponse.from(save(category));
     }
 
-    // Phase 1a: nothing references a category yet. When transactions,
-    // budgets, templates and recurring rules land (V2+), this must count
-    // their references in the same transaction and answer 409 with the
-    // counts, as Luyra does (docs/finance/API-CONTRACT.md #4).
+    // A category still used by transactions or recurring rules answers 409
+    // with the counts, as Luyra does (docs/finance/API-CONTRACT.md #4).
+    // Budgets and templates join the count when their tables land.
     @Override
     @Transactional
     public void delete(UUID userId, UUID id) {
-        categoryRepository.delete(findOwned(userId, id));
+        FinanceCategory category = findOwned(userId, id);
+        LookupUsage usage = usageRepository.countCategoryUsage(userId, id);
+        if (usage.total() > 0) {
+            throw LookupRules.inUse(category.getName(), usage);
+        }
+        try {
+            categoryRepository.delete(category);
+            categoryRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            if (LookupRules.isForeignKeyViolation(ex)) {
+                throw LookupRules.inUse(category.getName());
+            }
+            throw ex;
+        }
     }
 
     private FinanceCategory findOwned(UUID userId, UUID id) {

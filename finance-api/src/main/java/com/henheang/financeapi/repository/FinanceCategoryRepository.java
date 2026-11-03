@@ -1,6 +1,7 @@
 package com.henheang.financeapi.repository;
 
 import com.henheang.financeapi.domain.FinanceCategory;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +19,10 @@ public interface FinanceCategoryRepository extends JpaRepository<FinanceCategory
     List<FinanceCategory> findAllByUserIdOrderByNameAscIdAsc(UUID userId);
 
     Optional<FinanceCategory> findByIdAndUserId(UUID id, UUID userId);
+
+    // Names/icons/colors for a page of transactions. Scoped by user_id, unlike
+    // Luyra's join, which matched on id alone.
+    List<FinanceCategory> findAllByUserIdAndIdIn(UUID userId, Collection<UUID> ids);
 
     // lower() on both sides, matching the uq_finance_categories_user_name
     // index and Luyra's findCategoryByName. At most one row exists per name

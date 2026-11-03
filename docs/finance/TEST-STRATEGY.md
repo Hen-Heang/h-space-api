@@ -21,9 +21,16 @@ to finance.
   tests do. Both have email verified. JWTs come from `JwtTokenProvider`.
 - Only synthetic names and amounts (for example "Test Food", ₩12,345,
   $12.34). Never copy real descriptions, merchants or amounts from Luyra.
-- A fixed `Clock` (Asia/Seoul) bean in tests, used for boundary cases
-  such as 2027-01-31 23:59 KST, 2027-02-01 00:30 KST, leap years and the
-  year rollover.
+- Time:
+  - Tests so far use dates relative to `LocalDate.now(FinanceTime.ZONE)`,
+    for example the suggestion window's day 365 vs day 366.
+  - Fixed-instant boundary cases need a test hook in `FinanceTime`, such
+    as a test-only bean override:
+    - 2027-01-31 23:59 KST and 2027-02-01 00:30 KST, as in Phase 3's
+      contribution month
+    - leap years and the year rollover
+  - Add that hook when the first such test lands. **Don't** add a
+    context-wide `Clock` bean (see SPRING-ARCHITECTURE §3).
 - The scheduler is off in tests (`finance.jobs.enabled=false`). Jobs are
   tested by calling the job bean directly.
 
@@ -34,7 +41,7 @@ duplicates, and migration behaviour.
 
 1. Success, with the exact response shape.
 2. 400 for validation (field map) and malformed JSON. A non-UUID path id
-   gives 400 once gap G5 is fixed.
+   gives 400 once #29 (gap G5) is merged.
 3. 401 without a token, and with an expired or revoked token (one shared
    test per controller).
 4. **404 when another user's resource id is in the path**, and 404 when

@@ -80,7 +80,10 @@ finance-api/src/main/java/com/henheang/financeapi/
   config/
     FinanceOpenApiConfig.java         (exists)
     FinanceFlywayConfig.java
-    FinanceClockConfig.java           Clock bean pinned to Asia/Seoul
+    FinanceTime.java                  "today" in Asia/Seoul (built in Phase 2). Deliberately
+                                      not a java.time.Clock bean: security-api's services
+                                      build their own UTC clocks, and a context-wide Clock
+                                      bean could change how they are wired.
     FinanceJobsConfig.java            @EnableScheduling when finance.jobs.enabled
   controller/
     CategoryController, PaymentMethodController, TransactionController,
@@ -141,7 +144,7 @@ implementation.
 | Parity note | Luyra rounds a binary-double product. Exact `HALF_UP` can differ by ₩1 when the true product is exactly `.5`. Accept this, document it, and cover it with a golden test (D-7). |
 | Original amount and rate history | Every USD transaction keeps `amount_usd`, `exchange_rate` and `currency`. A recurring occurrence uses the stored rate on or before its date (Luyra rule). `finance_exchange_rates` is append-only with a retention policy (D-12). |
 | Percentages | `usagePct = spent*100/budget` with `HALF_UP` to an integer, the same thresholds as Luyra, and the status uses the **rounded** value as the overview does. Telegram alert levels use the unrounded value in Luyra. Unify on one rule and document it (D-13). |
-| Dates | `LocalDate` for business dates, `YearMonth` for months, `Instant` for audit. The `Clock` bean (Asia/Seoul) is injected; there is no `LocalDate.now()` without it. Ranges are half-open `[start, end)`. |
+| Dates | `LocalDate` for business dates, `YearMonth` for months, `Instant` for audit. "Today" comes from `FinanceTime` (Asia/Seoul); there is no bare `LocalDate.now()` or SQL `current_date`. Ranges are half-open `[start, end)`. |
 | Seoul fixes | Contribution month, push-alert month, lookback and suggestion window all use Seoul (DATABASE-SCHEMA §6). |
 | Atomicity | Every multi-statement write is one `@Transactional` service method: <br>• contribution + goal balance <br>• bulk ops <br>• plan apply <br>• recurring apply <br>• category delete-if-unused <br>• alias merge |
 | Concurrency | • Budgets: `INSERT … ON CONFLICT (user_id, category_id) DO UPDATE`. <br>• Subscription status and aliases: the same pattern on their new unique keys. <br>• Goal balance: `UPDATE … SET current_usd = current_usd + :amt WHERE id=:id AND user_id=:uid` inside the transaction. <br>• Entity edits: `@Version` → 409 on conflict (handler already exists). <br>• Template cap: lock the user's preferences row (`SELECT … FOR UPDATE`) before count+insert. |
