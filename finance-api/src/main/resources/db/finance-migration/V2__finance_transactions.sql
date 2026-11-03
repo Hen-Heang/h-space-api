@@ -2,7 +2,7 @@
 -- Phase 1b). Recurring rules get their table now because transactions
 -- reference it; their endpoints and job come in Phase 5.
 --
--- Same columns as Lyra's Neon tables (luyra-web db/migrations/004 + 014) so
+-- Same columns as Luyra's Neon tables (luyra-web db/migrations/004 + 014) so
 -- rows copy across with their ids, plus what Luyra enforced only in code or
 -- not at all (docs/finance/DATABASE-SCHEMA.md §3.1, §3.7, §5). An import must
 -- pre-check its rows against these and stop on a violation:
