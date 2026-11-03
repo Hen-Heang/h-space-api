@@ -120,6 +120,21 @@ Phase 1 is split into **two PRs**.
 
 ## Phase 2 — Filtering, bulk operations, suggestions, validation hardening
 
+> **Status 2026-11-03: built on branch `feat/finance-bulk-suggestions`,
+> which is stacked on `feat/finance-transactions`. Not committed yet.**
+> `./gradlew clean build` is green: finance-api has 98 tests and the full
+> build has 315, all passing.
+>
+> Beyond Luyra:
+>
+> - Recategorize locks the selected rows (`PESSIMISTIC_WRITE`), so the
+>   type check and the update can't race a concurrent edit.
+> - The suggestion window is computed in Seoul (`FinanceTime`) instead of
+>   the database session's `current_date`.
+> - Equal-ranked suggestions get a stable tie-break.
+>
+> Task 0.5 (non-UUID ids → 400) is on its own PR (#29) against `main`.
+
 - **Endpoints:** #14 bulk (delete/recategorize), #15 suggestions.
 - **Subtasks:**
   - bulk in one transaction, ≤200 unique ids, counts only the caller's rows

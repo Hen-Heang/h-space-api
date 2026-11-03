@@ -7,8 +7,8 @@ backend is moving. It runs on port 8083 and is secured by
 
 ## Current state
 
-**Phases 1a and 1b are built on branches and not merged yet.** They
-cover API-CONTRACT #1–8 and #10–13:
+**Phases 1a, 1b and 2 are built on stacked branches and not merged
+yet.** They cover API-CONTRACT #1–8 and #10–15:
 
 | Path | Methods |
 |---|---|
@@ -18,6 +18,8 @@ cover API-CONTRACT #1–8 and #10–13:
 | `/api/finance/payment-methods/{id}` | `PATCH`, `DELETE` |
 | `/api/finance/transactions` | `GET` (filters, sort, 20 per page), `POST` |
 | `/api/finance/transactions/{id}` | `PATCH` (full replace, like Luyra), `DELETE` |
+| `/api/finance/transactions/bulk` | `POST`: delete or recategorize up to 200, in one transaction |
+| `/api/finance/transactions/suggestions` | `GET`: description autocomplete, last 365 Seoul days, max 6 |
 
 How it works:
 
