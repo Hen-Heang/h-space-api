@@ -262,4 +262,16 @@ class InboxItemControllerIntegrationTest {
         send(delete(BASE + "/" + id), aliceToken, null).andExpect(status().isOk());
         send(get(BASE + "/" + id), aliceToken, null).andExpect(status().isNotFound());
     }
+
+    // Was a 500 (migration-plan audit finding 1.6): GlobalExceptionHandler
+    // now maps a wrong-type path value to 400 without echoing it.
+    @Test
+    void aNonUuidIdIsABadRequest() throws Exception {
+        send(get(BASE + "/not-a-uuid"), aliceToken, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status.message").value("Invalid value for 'id'."));
+        send(patch(BASE + "/not-a-uuid"), aliceToken, Map.of("pinned", true))
+                .andExpect(status().isBadRequest());
+        send(delete(BASE + "/not-a-uuid"), aliceToken, null).andExpect(status().isBadRequest());
+    }
 }
