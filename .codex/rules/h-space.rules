@@ -1,0 +1,42 @@
+# Codex command policy for h-space-api — the Codex counterpart of the deny
+# list in .claude/settings.json. Rules match a command's leading tokens.
+# decision: "forbidden" = never run, "prompt" = ask the user first.
+# Shared rules (why these exist): AGENTS.md "Git" and "Secrets".
+
+# --- Destructive git: never ---
+prefix_rule(pattern=["git", "reset", "--hard"], decision="forbidden")
+prefix_rule(pattern=["git", "clean"], decision="forbidden")
+prefix_rule(pattern=["git", "push", "--force"], decision="forbidden")
+prefix_rule(pattern=["git", "push", "-f"], decision="forbidden")
+prefix_rule(pattern=["git", "push", "--force-with-lease"], decision="forbidden")
+prefix_rule(pattern=["git", "filter-branch"], decision="forbidden")
+prefix_rule(pattern=["git", "checkout", "--"], decision="forbidden")
+prefix_rule(pattern=["git", "checkout", "."], decision="forbidden")
+prefix_rule(pattern=["git", "restore"], decision="forbidden")
+prefix_rule(pattern=["git", "branch", "-D"], decision="forbidden")
+prefix_rule(pattern=["git", "commit", "--amend"], decision="forbidden")
+prefix_rule(pattern=["git", "rebase"], decision="forbidden")
+
+# --- Publishing changes: only when the user explicitly asked ---
+prefix_rule(pattern=["git", "commit"], decision="prompt")
+prefix_rule(pattern=["git", "push"], decision="prompt")
+prefix_rule(pattern=["git", "add", "-A"], decision="forbidden")
+prefix_rule(pattern=["git", "add", "."], decision="forbidden")
+prefix_rule(pattern=["gh", "pr", "create"], decision="prompt")
+prefix_rule(pattern=["gh", "pr", "merge"], decision="forbidden")
+prefix_rule(pattern=["gh", "workflow", "run"], decision="forbidden")
+
+# --- Secrets: never print env files or the environment ---
+prefix_rule(pattern=["cat", [".env", "deploy/.env", "deploy\\.env"]], decision="forbidden")
+prefix_rule(pattern=["type", [".env", "deploy/.env", "deploy\\.env"]], decision="forbidden")
+prefix_rule(pattern=["Get-Content", [".env", "deploy/.env", "deploy\\.env"]], decision="forbidden")
+prefix_rule(pattern=["printenv"], decision="forbidden")
+prefix_rule(pattern=["env"], decision="forbidden")
+
+# --- Bulk deletion ---
+prefix_rule(pattern=["rm", ["-rf", "-fr"]], decision="forbidden")
+prefix_rule(pattern=["Remove-Item", "-Recurse"], decision="prompt")
+
+# --- Production / remote state: never from an agent session ---
+prefix_rule(pattern=["docker", "compose", "-f", "compose.prod.yaml"], decision="forbidden")
+prefix_rule(pattern=["docker", "push"], decision="forbidden")

@@ -10,14 +10,57 @@
       "Bash(git show:*)"
     ],
     "deny": [
-      "Read(.env)",
-      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.env)",
       "Read(**/src/main/resources/application-local.yml)",
+      "Edit(**/.env)",
+      "Write(**/.env)",
+      "Bash(cat *.env*)",
+      "Bash(cat */.env*)",
+      "Bash(type *.env*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(grep * .env*)",
+      "Bash(grep * */.env*)",
+      "Bash(cat *application-local.yml)",
+      "Bash(printenv:*)",
+      "Bash(env)",
       "Bash(git reset:*)",
       "Bash(git clean:*)",
+      "Bash(git checkout -- *)",
+      "Bash(git checkout .)",
+      "Bash(git restore:*)",
+      "Bash(git rebase:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git commit --amend:*)",
       "Bash(git push --force:*)",
-      "Bash(git push -f:*)"
+      "Bash(git push -f:*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f)",
+      "Bash(git push * -f *)",
+      "Bash(git filter-branch:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rm -fr:*)"
     ],
     "defaultMode": "default"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-git.js\"" }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-secrets.js\"" }
+        ]
+      }
+    ]
   }
 }
