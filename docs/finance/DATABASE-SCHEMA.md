@@ -339,7 +339,7 @@ added only after a pre-check on the source data:
 | Lookup values within the API's limits | **Built** (V1): name 1..40 chars (trimmed), icon 1..8, color `#RRGGBB` | `count(*) where char_length(btrim(name)) not between 1 and 40`, `… icon …`, `color !~ '^#[0-9a-fA-F]{6}$'` |
 | Referenced category/payment method/rule/goal belong to the same user | `UNIQUE (id, user_id)` on parents + composite FKs `(category_id, user_id) → categories(id, user_id)` | join child to parent where `parent.user_id <> child.user_id` must return 0 |
 | Positive amounts | `CHECK (amount_krw > 0)` on transactions | `count(*) where amount_krw <= 0` |
-| Whole won | `NUMERIC(14,0)` or `CHECK (amount_krw = trunc(amount_krw))` | `count(*) where amount_krw <> trunc(amount_krw)` (decision D-7) |
+| Whole won | **Built** (V2): `NUMERIC(14,0)`. Postgres *rounds* a fractional value into this column instead of rejecting it, so the API rejects fractional KRW (`KrwConverter`) and an import **must** run the pre-check | `count(*) where amount_krw <> trunc(amount_krw)` (decision D-7) |
 | Currency shape | `CHECK (currency in ('KRW','USD'))` + `CHECK ((currency='USD') = (amount_usd is not null and exchange_rate is not null))` | count violations |
 | Description present | `description NOT NULL` | `count(*) where description is null` |
 | Category type present | `type NOT NULL` | count nulls |

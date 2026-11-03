@@ -1,6 +1,7 @@
 package com.henheang.financeapi.repository;
 
 import com.henheang.financeapi.domain.FinancePaymentMethod;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,8 @@ public interface FinancePaymentMethodRepository extends JpaRepository<FinancePay
     List<FinancePaymentMethod> findAllByUserIdOrderByNameAscIdAsc(UUID userId);
 
     Optional<FinancePaymentMethod> findByIdAndUserId(UUID id, UUID userId);
+
+    List<FinancePaymentMethod> findAllByUserIdAndIdIn(UUID userId, Collection<UUID> ids);
 
     @Query(
             "SELECT p FROM FinancePaymentMethod p WHERE p.userId = :userId"

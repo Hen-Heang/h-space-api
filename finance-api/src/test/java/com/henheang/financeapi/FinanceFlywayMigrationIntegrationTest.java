@@ -63,9 +63,9 @@ class FinanceFlywayMigrationIntegrationTest {
         Integer applied =
                 jdbcTemplate.queryForObject(
                         "SELECT count(*) FROM flyway_finance_schema_history"
-                                + " WHERE version = '1' AND success",
+                                + " WHERE version IN ('1', '2') AND success",
                         Integer.class);
-        assertThat(applied).isEqualTo(1);
+        assertThat(applied).isEqualTo(2);
 
         Integer inSecurityHistory =
                 jdbcTemplate.queryForObject(
@@ -101,6 +101,95 @@ class FinanceFlywayMigrationIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> insertCategory(alice, "Test C", null, null))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private UUID insertCategoryReturningId(UUID userId, String name) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO finance_categories (id, user_id, name) VALUES (?, ?, ?)",
+                id,
+                userId,
+                name);
+        return id;
+    }
+
+    private void insertTransaction(
+            UUID userId,
+            UUID categoryId,
+            UUID recurringId,
+            String currency,
+            String amountUsd,
+            String rate) {
+        jdbcTemplate.update(
+                "INSERT INTO finance_transactions (id, user_id, date, type, description,"
+                        + " currency, amount_krw, amount_usd, exchange_rate, category_id,"
+                        + " recurring_id) VALUES (?, ?, DATE '2026-11-03', 'expense', 'Test', ?,"
+                        + " 1000, CAST(? AS numeric), CAST(? AS numeric), ?, ?)",
+                UUID.randomUUID(),
+                userId,
+                currency,
+                amountUsd,
+                rate,
+                categoryId,
+                recurringId);
+    }
+
+    private UUID insertRecurringRule(UUID userId) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO finance_recurring_transactions (id, user_id, type, description,"
+                        + " amount_krw, frequency, next_date, anchor_day)"
+                        + " VALUES (?, ?, 'expense', 'Test rent', 500000, 'monthly',"
+                        + " DATE '2026-12-01', 1)",
+                id,
+                userId);
+        return id;
+    }
+
+    @Test
+    void aTransactionCannotPointAtAnotherUsersCategory() {
+        UUID alice = newUser();
+        UUID bob = newUser();
+        UUID bobsCategory = insertCategoryReturningId(bob, "Bob Food");
+
+        assertThatThrownBy(() -> insertTransaction(alice, bobsCategory, null, "KRW", null, null))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_finance_transactions_category");
+        insertTransaction(bob, bobsCategory, null, "KRW", null, null);
+    }
+
+    @Test
+    void enforcesTheCurrencyShape() {
+        UUID alice = newUser();
+
+        assertThatThrownBy(() -> insertTransaction(alice, null, null, "KRW", "10.00", "1390"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertTransaction(alice, null, null, "USD", "10.00", null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertTransaction(alice, null, null, "EUR", null, null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        insertTransaction(alice, null, null, "USD", "10.00", "100");
+    }
+
+    @Test
+    void deletingARecurringRuleKeepsItsTransactions() {
+        UUID alice = newUser();
+        UUID rule = insertRecurringRule(alice);
+        insertTransaction(alice, null, rule, "KRW", null, null);
+
+        // One occurrence per rule per day.
+        assertThatThrownBy(() -> insertTransaction(alice, null, rule, "KRW", null, null))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        jdbcTemplate.update("DELETE FROM finance_recurring_transactions WHERE id = ?", rule);
+
+        Integer kept =
+                jdbcTemplate.queryForObject(
+                        "SELECT count(*) FROM finance_transactions"
+                                + " WHERE user_id = ? AND recurring_id IS NULL",
+                        Integer.class,
+                        alice);
+        assertThat(kept).isEqualTo(1);
     }
 
     @Test
