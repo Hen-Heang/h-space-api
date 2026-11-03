@@ -108,6 +108,18 @@ class GlobalExceptionHandlerIntegrationTest {
     }
 
     @Test
+    void queryAndTransactionTimeoutsAre503TryAgain() throws Exception {
+        for (String path : new String[] {"/query-timeout", "/transaction-timeout"}) {
+            probe(path)
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.status.code").value(50301))
+                    .andExpect(
+                            jsonPath("$.status.message")
+                                    .value("The service is busy right now. Please try again."));
+        }
+    }
+
+    @Test
     void errorBodiesCarryTheRequestId_matchingTheHeader() throws Exception {
         String body =
                 mockMvc.perform(get(PROBE + "/boom").header(RequestIdFilter.HEADER, "err-ref-42"))

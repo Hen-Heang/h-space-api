@@ -15,6 +15,14 @@ spring:
   jpa:
     show-sql: false
 
+  # A deadline for every @Transactional unit of work (JPA repositories are
+  # transactional by default; JdbcTemplate inside a transaction too): its
+  # queries are cancelled once it runs out, so one slow query can't hold a
+  # pool connection (5 in prod) indefinitely. Timeouts answer 503 "try
+  # again" (GlobalExceptionHandler). Flyway isn't affected.
+  transaction:
+    default-timeout: ${DB_TRANSACTION_TIMEOUT:30s}
+
   # Flyway is the sole schema authority (see docs/database.md); every
   # profile's ddl-auto is "validate" - Hibernate checks the schema matches,
   # it never creates/alters it.

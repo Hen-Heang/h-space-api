@@ -12,6 +12,7 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.transaction.TransactionTimedOutException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -239,6 +241,29 @@ public class GlobalExceptionHandler {
                         ExitCode.SYSTEM_ERROR.getMessage());
 
         return respond(apiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    // A query cancelled by the statement timeout, or a transaction past its
+    // deadline (spring.transaction.default-timeout). Not the caller's fault
+    // and usually transient, so 503 "try again", not a 500. The log keeps the
+    // request so the slow query can be found; the client gets no SQL.
+    // jakarta's QueryTimeoutException: an EntityManager used outside a
+    // repository proxy isn't translated into Spring's.
+    @ExceptionHandler({
+        QueryTimeoutException.class,
+        jakarta.persistence.QueryTimeoutException.class,
+        TransactionTimedOutException.class
+    })
+    public ResponseEntity<ApiResponse<Object>> handleTimeout(Exception ex, WebRequest request) {
+        log.warn(
+                "Timed out ({}) on {}",
+                ex.getClass().getSimpleName(),
+                request.getDescription(false));
+        String message = "The service is busy right now. Please try again.";
+        ApiResponse<Object> apiResponse =
+                new ApiResponse<>(
+                        new ApiStatus(StatusCode.SERVICE_UNAVAILABLE.getCode(), message), message);
+        return respond(apiResponse, HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     private static ResponseEntity<ApiResponse<Object>> badRequest(String message) {

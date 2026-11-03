@@ -10,6 +10,8 @@ import jakarta.validation.constraints.NotBlank;
 import java.sql.SQLException;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.QueryTimeoutException;
+import org.springframework.transaction.TransactionTimedOutException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -69,6 +71,17 @@ class ExceptionProbeController {
     @GetMapping("/boom")
     String boom() {
         throw new IllegalStateException("Internal failure: " + CANARY);
+    }
+
+    @GetMapping("/query-timeout")
+    String queryTimeout() {
+        throw new QueryTimeoutException(
+                "ERROR: canceling statement due to statement timeout, " + CANARY);
+    }
+
+    @GetMapping("/transaction-timeout")
+    String transactionTimeout() {
+        throw new TransactionTimedOutException("Transaction timed out: " + CANARY);
     }
 
     private static DataIntegrityViolationException integrity(String sqlState) {

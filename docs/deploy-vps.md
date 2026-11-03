@@ -265,6 +265,7 @@ nano .env
 | `MAIL_USERNAME`, `MAIL_PASSWORD` | recommended | SMTP account (Gmail app password). |
 | `OWNER_EMAIL` | recommended | Becomes admin once verified. |
 | `DB_POOL_MAX_SIZE`, `DB_POOL_MIN_IDLE` | no | Default 5 / 1. |
+| `DB_TRANSACTION_TIMEOUT` | no | Default `30s`: the deadline for each transaction; its queries are cancelled after it and the request answers 503. Flyway isn't affected. |
 | `API_MEM_LIMIT` | no | Default `768m`; the heap is 60% of it. |
 | `SIGNUP_MODE`, `GOOGLE_CLIENT_IDS`, `API_DOCS_ENABLED`, `SUPABASE_*`, `SPRING_FLYWAY_*` | no | See comments in `prod.env.example`. |
 
