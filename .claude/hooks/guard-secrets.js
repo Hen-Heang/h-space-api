@@ -27,10 +27,16 @@ process.stdin.on('end', () => {
     ],
   ];
   // Non-placeholder secret-ish assignments in env/properties files (yml uses ${VAR:...} so is skipped).
-  const isEnvLike = /(^|\/)(\.env[^/]*|[^/]+\.env|[^/]+\.properties)$/.test(file);
+  // `.env`, `.env.local`, `prod.env`, and templates like `prod.env.example`.
+  const isEnvLike =
+    /(^|\/)(\.env[^/]*|[^/]+\.env(?:\.(?:example|sample|template|local|dev|prod|test))?|[^/]+\.properties)$/.test(
+      file
+    );
   if (isEnvLike) {
+    // [ \t]* rather than \s*: with /m, \s* would cross a newline and read an empty
+    // `KEY=` plus the next line as one assignment.
     patterns.push([
-      /^\s*[A-Z0-9_]*(SECRET|PASSWORD|_KEY|TOKEN)[A-Z0-9_]*\s*=\s*(?!\s*(?:$|#|""|''|\$\{[^}]+\}|<[^>]+>|CHANGEME|(?:REPLACE|YOUR|CHANGE|EXAMPLE|PLACEHOLDER|FILL|INSERT)[_-][A-Z0-9_${}-]+\s*(?:#.*)?$))\S{8,}/im,
+      /^[ \t]*[A-Z0-9_]*(SECRET|PASSWORD|_KEY|TOKEN)[A-Z0-9_]*[ \t]*=[ \t]*(?![ \t]*(?:$|#|""|''|\$\{[^}]+\}|<[^>]+>|CHANGEME|(?:REPLACE|YOUR|CHANGE|EXAMPLE|PLACEHOLDER|FILL|INSERT)[_-][A-Z0-9_${}-]+[ \t]*(?:#.*)?$))\S{8,}/im,
       'secret assignment',
     ]);
   }
