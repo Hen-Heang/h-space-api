@@ -17,7 +17,7 @@ public interface EmailVerificationTokenRepository
 
     @Modifying
     @Query("DELETE FROM EmailVerificationToken t WHERE t.expiryDateTime < ?1")
-    void deleteAllExpiredTokens(LocalDateTime now);
+    int deleteAllExpiredTokens(LocalDateTime now);
 
     Optional<EmailVerificationToken> findByToken(String token);
 }

@@ -70,3 +70,8 @@ server:
   # Same as security-api: resolve the client IP from X-Forwarded-For only when
   # the request came from a trusted proxy (RateLimitingFilter keys on it).
   forward-headers-strategy: native
+
+# Prints the request's X-Request-Id (RequestIdFilter in api-core) on every log line.
+logging:
+  pattern:
+    correlation: "[%X{requestId:-}] "

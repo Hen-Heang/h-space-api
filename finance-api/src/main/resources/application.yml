@@ -42,3 +42,8 @@ app:
 
 server:
   port: ${SERVER_PORT:8083}
+
+# Prints the request's X-Request-Id (RequestIdFilter in api-core) on every log line.
+logging:
+  pattern:
+    correlation: "[%X{requestId:-}] "

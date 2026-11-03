@@ -2,6 +2,7 @@ package com.henheang.hubapi.config;
 
 import com.henheang.hubapi.repository.VaultItemRepository;
 import com.henheang.hubapi.repository.VaultKeysetRepository;
+import com.henheang.securityapi.config.ScheduledJobLock;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +22,21 @@ public class VaultCleanupTask {
 
     private static final Logger log = LoggerFactory.getLogger(VaultCleanupTask.class);
 
+    static final String JOB = "hub-api.vault-deleted-account-purge";
+
+    private final ScheduledJobLock jobLock;
     private final VaultItemRepository itemRepository;
     private final VaultKeysetRepository keysetRepository;
 
-    @Scheduled(cron = "${hub.vault.cleanup-cron:0 17 * * * *}")
+    // "-" as the cron turns the job off. The lock keeps two hub-api containers from purging at
+    // once; the purge is idempotent, so a repeat run is harmless.
+    @Scheduled(cron = "${hub.vault.cleanup-cron:0 17 * * * *}", zone = "${app.scheduling.zone:UTC}")
     @Transactional
     public void purgeDeletedAccounts() {
+        if (!jobLock.tryAcquire(JOB)) {
+            log.debug("Skipping {}: another instance is running it", JOB);
+            return;
+        }
         int items = itemRepository.deleteForDeletedUsers();
         int keysets = keysetRepository.deleteForDeletedUsers();
         if (items > 0 || keysets > 0) {

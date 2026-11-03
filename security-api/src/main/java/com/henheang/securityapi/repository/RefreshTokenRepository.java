@@ -3,6 +3,7 @@ package com.henheang.securityapi.repository;
 
 import com.henheang.securityapi.domain.RefreshToken;
 import com.henheang.securityapi.domain.User;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,11 +29,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
                     + " WHERE r.id = :id AND r.revoked = false")
     int revokeIfActive(@Param("id") UUID id);
 
-    //    @Modifying
-    //    @Query("UPDATE RefreshToken r SET r.revoked = true WHERE r.user = :user")
-    //    void revokeAllUserTokens(User user);
-    //
-    //    @Modifying
-    //    @Query("DELETE FROM RefreshToken r WHERE r.expiryDate < :now")
-    //    void deleteAllExpiredTokens(Instant now);
+    // One bulk DELETE for the cleanup job - it used to load every refresh token
+    // into memory and delete them one by one.
+    @Modifying
+    @Query("DELETE FROM RefreshToken r WHERE r.expiryDate < :now")
+    int deleteAllExpiredTokens(@Param("now") Instant now);
 }
