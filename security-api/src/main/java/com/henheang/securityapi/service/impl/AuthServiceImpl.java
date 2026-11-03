@@ -14,7 +14,7 @@ import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.security.JwtTokenProvider;
 import com.henheang.securityapi.security.oauth.GoogleTokenVerifier;
 import com.henheang.securityapi.service.AccountAccessService;
-import com.henheang.securityapi.service.AccountUnlockService;
+import com.henheang.securityapi.service.AccountLockoutService;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.AuthService;
 import com.henheang.securityapi.service.EmailLoginCodeService;
@@ -30,7 +30,6 @@ import com.henheang.securityapi.service.UserService;
 import com.henheang.securityapi.validation.UsernameRules;
 import jakarta.transaction.Transactional;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
@@ -69,19 +68,13 @@ public class AuthServiceImpl implements AuthService {
     private final LoginHistoryService loginHistoryService;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final EmailVerificationService emailVerificationService;
-    private final AccountUnlockService accountUnlockService;
+    private final AccountLockoutService accountLockoutService;
     private final EmailLoginCodeService emailLoginCodeService;
     private final AccountAccessService accountAccessService;
     private final TokenBlacklistService tokenBlacklistService;
 
     @Value("${jwt.expiration}")
     private String jwtExpirationString;
-
-    @Value("${app.account-lock.max-failed-attempts:5}")
-    private int maxFailedLoginAttempts;
-
-    @Value("${app.account-lock.lock-duration-minutes:15}")
-    private long accountLockDurationMinutes;
 
     @Override
     @Transactional
@@ -272,25 +265,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void registerFailedLoginAttempt(User user) {
-        int attempts = user.getFailedLoginAttempts() + 1;
-        user.setFailedLoginAttempts(attempts);
-        boolean justLocked = false;
-        if (attempts >= maxFailedLoginAttempts) {
-            user.setLockedUntil(Instant.now().plus(Duration.ofMinutes(accountLockDurationMinutes)));
-            justLocked = true;
-        }
-        userRepository.save(user);
-        if (justLocked && user.getEmail() != null) {
-            accountUnlockService.sendUnlockEmail(user);
-        }
+        accountLockoutService.registerFailure(user);
     }
 
     private void clearFailedLoginAttempts(User user) {
-        if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
-            user.setFailedLoginAttempts(0);
-            user.setLockedUntil(null);
-            userRepository.save(user);
-        }
+        accountLockoutService.clear(user);
     }
 
     @Override

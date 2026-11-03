@@ -16,6 +16,11 @@ public enum StatusCode {
     // 403 Forbidden
     FORBIDDEN(40300, "Forbidden", 403),
     VAULT_MFA_REQUIRED(40301, "Turn on authenticator-app MFA to use the vault", 403),
+    // Step-up for destructive vault actions (reset, keyset replacement).
+    VAULT_MFA_CODE_REQUIRED(
+            40302, "Enter a code from your authenticator app to confirm this change", 403),
+    VAULT_MFA_CODE_INVALID(40303, "That code is wrong or was already used", 403),
+    VAULT_MFA_LOCKED(40304, "Too many wrong codes. Try again later", 403),
 
     // 400 Bad Request & Validation Errors
     BAD_REQUEST(40000, "Bad Request", 400),

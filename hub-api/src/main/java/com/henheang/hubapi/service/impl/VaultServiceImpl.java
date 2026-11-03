@@ -17,14 +17,17 @@ import com.henheang.securityapi.exception.BusinessException;
 import com.henheang.securityapi.exception.ResourceNotFoundException;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.service.AuditLogService;
+import com.henheang.securityapi.service.MfaStepUpService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +40,10 @@ public class VaultServiceImpl implements VaultService {
     private final VaultItemRepository itemRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final MfaStepUpService mfaStepUpService;
+
+    @Value("${hub.vault.step-up-required:false}")
+    private boolean stepUpRequired;
 
     @Override
     @Transactional(readOnly = true)
@@ -72,6 +79,10 @@ public class VaultServiceImpl implements VaultService {
             keyset.setCreatedAt(now);
         } else if (!Objects.equals(request.getVersion(), keyset.getVersion())) {
             throw conflict("The vault was changed on another device. Reload and try again.");
+        } else {
+            // Replacing overwrites both wrapped keys: a bad replacement makes
+            // every item unreadable, so a session alone isn't enough.
+            requireStepUp(userId, request.getMfaCode(), "vault-keyset-replace");
         }
         keyset.setKdf(request.getKdf());
         keyset.setKdfIterations(request.getKdfIterations());
@@ -97,8 +108,9 @@ public class VaultServiceImpl implements VaultService {
 
     @Override
     @Transactional
-    public void reset(UUID userId) {
+    public void reset(UUID userId, String mfaCode) {
         requireMfa(userId);
+        requireStepUp(userId, mfaCode, "vault-reset");
         int items = itemRepository.deleteByUserId(userId);
         keysetRepository.deleteByUserId(userId);
         auditLogService.log(AuditEventType.VAULT_RESET, userId, null, "items=" + items);
@@ -184,6 +196,27 @@ public class VaultServiceImpl implements VaultService {
         boolean mfaEnabled = userRepository.findById(userId).map(User::isMfaEnabled).orElse(false);
         if (!mfaEnabled) {
             throw new BusinessException(StatusCode.VAULT_MFA_REQUIRED);
+        }
+    }
+
+    // Step-up for destructive actions (vault-design.md §8). A code that is sent is
+    // always checked. Requiring one is behind hub.vault.step-up-required until
+    // the web app sends it: switching it on first would break master-password
+    // change and reset for the current client.
+    private void requireStepUp(UUID userId, String mfaCode, String action) {
+        if (!StringUtils.hasText(mfaCode)) {
+            if (stepUpRequired) {
+                throw new BusinessException(StatusCode.VAULT_MFA_CODE_REQUIRED);
+            }
+            return;
+        }
+        switch (mfaStepUpService.verify(userId, mfaCode, action)) {
+            case VERIFIED -> {
+                // proceed
+            }
+            case INVALID -> throw new BusinessException(StatusCode.VAULT_MFA_CODE_INVALID);
+            case LOCKED -> throw new BusinessException(StatusCode.VAULT_MFA_LOCKED);
+            case MFA_NOT_ENABLED -> throw new BusinessException(StatusCode.VAULT_MFA_REQUIRED);
         }
     }
 

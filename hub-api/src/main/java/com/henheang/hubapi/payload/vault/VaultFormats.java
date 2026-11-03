@@ -23,5 +23,11 @@ public final class VaultFormats {
     public static final int MAX_KDF_ITERATIONS = 10_000_000;
     public static final int MAX_ITEM_CIPHERTEXT_LENGTH = 16_384;
 
+    /**
+     * A step-up code: 6 authenticator digits, or a backup code ({@code ABCD2-EFGH3}, case and dash
+     * optional). Only the shape is checked here; MfaStepUpService checks the value.
+     */
+    public static final String MFA_CODE = "^(\\d{6}|[A-Za-z0-9]{5}-?[A-Za-z0-9]{5})$";
+
     private VaultFormats() {}
 }

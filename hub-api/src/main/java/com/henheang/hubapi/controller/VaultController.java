@@ -47,7 +47,7 @@ public class VaultController extends BaseController {
     public Object reset(
             @Valid @RequestBody VaultResetRequest request,
             @AuthenticationPrincipal UserPrincipal user) {
-        vaultService.reset(user.getId());
+        vaultService.reset(user.getId(), request.getMfaCode());
         return ok();
     }
 

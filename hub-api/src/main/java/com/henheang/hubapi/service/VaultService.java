@@ -18,8 +18,11 @@ public interface VaultService {
 
     VaultKeysetResponse saveKeyset(UUID userId, VaultKeysetRequest request);
 
-    /** Deletes every item and the keyset, in one transaction. */
-    void reset(UUID userId);
+    /**
+     * Deletes every item and the keyset, in one transaction, after the step-up code (null when the
+     * client sends none; see {@code hub.vault.step-up-required}).
+     */
+    void reset(UUID userId, String mfaCode);
 
     List<VaultItemResponse> listItems(UUID userId);
 

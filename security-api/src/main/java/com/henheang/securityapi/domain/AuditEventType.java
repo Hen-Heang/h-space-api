@@ -16,6 +16,9 @@ public enum AuditEventType {
     MFA_CHALLENGE_FAILED,
     MFA_BACKUP_CODE_USED,
     MFA_BACKUP_CODES_REGENERATED,
+    // Step-up (MfaStepUpService). Details carry the action label only.
+    MFA_STEP_UP_VERIFIED,
+    MFA_STEP_UP_FAILED,
     EMAIL_VERIFICATION_REQUESTED,
     EMAIL_VERIFIED,
     ACCOUNT_UNLOCK_REQUESTED,
