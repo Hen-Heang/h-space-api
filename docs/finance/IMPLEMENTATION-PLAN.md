@@ -55,6 +55,25 @@ Phase 1 is split into **two PRs**.
 
 **1b — Transaction CRUD**
 
+> **Status 2026-11-03: built on branch `feat/finance-transactions`, which
+> is stacked on `feat/finance-lookups`. Not committed yet.**
+> `./gradlew clean build` is green: finance-api has 88 tests and the full
+> build has 305, all passing.
+>
+> What was applied:
+>
+> - D-7 as proposed: whole-won KRW, `HALF_UP`, ₩1 parity case pinned.
+> - D-15: full-replace PATCH.
+>
+> What was deferred:
+>
+> - D-8 (`Idempotency-Key`): it needs a decision, and V3 can add the
+>   column.
+> - A concurrent-PATCH `@Version` test.
+>
+> The category/payment-method "still in use" delete check from 1a's
+> deferral is done.
+
 - **Files:**
   - `domain/FinanceTransaction`, `domain/money/KrwConverter`
   - `repository/FinanceTransactionRepository`
