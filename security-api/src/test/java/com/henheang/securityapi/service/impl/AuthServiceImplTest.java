@@ -105,13 +105,12 @@ class AuthServiceImplTest {
                         loginHistoryService,
                         googleTokenVerifier,
                         emailVerificationService,
-                        accountUnlockService,
+                        // The real lockout logic (5 attempts, 15 minutes) over the mocks.
+                        new AccountLockoutServiceImpl(userRepository, accountUnlockService, 5, 15),
                         emailLoginCodeService,
                         accountAccessService,
                         mock(TokenBlacklistService.class));
         ReflectionTestUtils.setField(authService, "jwtExpirationString", "PT24H");
-        ReflectionTestUtils.setField(authService, "maxFailedLoginAttempts", 5);
-        ReflectionTestUtils.setField(authService, "accountLockDurationMinutes", 15L);
     }
 
     private User persistedUser(UUID id) {

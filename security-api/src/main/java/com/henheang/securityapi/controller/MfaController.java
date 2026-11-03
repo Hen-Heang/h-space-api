@@ -13,6 +13,7 @@ import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.AuthService;
 import com.henheang.securityapi.service.MfaBackupCodeService;
 import com.henheang.securityapi.service.MfaService;
+import com.henheang.securityapi.service.MfaStepUpService;
 import com.henheang.securityapi.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -40,6 +41,7 @@ public class MfaController extends BaseController {
     private final UserService userService;
     private final AuthService authService;
     private final AuditLogService auditLogService;
+    private final MfaStepUpService mfaStepUpService;
 
     @Operation(
             summary = "Start MFA setup",
@@ -132,7 +134,7 @@ public class MfaController extends BaseController {
         if (!user.isMfaEnabled()) {
             throw new AuthException(ExitCode.MFA_NOT_ENABLED);
         }
-        if (!isValidMfaOrBackupCode(user, request.getCode())) {
+        if (!stepUp(user, request.getCode(), "mfa-disable")) {
             auditLogService.log(AuditEventType.MFA_DISABLE_FAILED, user.getId(), user.getEmail());
             throw new AuthException(ExitCode.MFA_CODE_INVALID);
         }
@@ -182,7 +184,7 @@ public class MfaController extends BaseController {
         if (!user.isMfaEnabled()) {
             throw new AuthException(ExitCode.MFA_NOT_ENABLED);
         }
-        if (!isValidMfaOrBackupCode(user, request.getCode())) {
+        if (!stepUp(user, request.getCode(), "mfa-backup-codes-regenerate")) {
             throw new AuthException(ExitCode.MFA_CODE_INVALID);
         }
 
@@ -192,8 +194,17 @@ public class MfaController extends BaseController {
         return ok(new MfaBackupCodesResponse(backupCodes));
     }
 
-    private boolean isValidMfaOrBackupCode(User user, String code) {
-        return mfaService.verifyCode(user.getMfaSecret(), code)
-                || mfaBackupCodeService.verifyAndConsume(user, code);
+    // Was a plain verifyCode: a code could be replayed and wrong guesses never
+    // counted toward the lock. MfaStepUpService applies the sign-in rules.
+    private boolean stepUp(User user, String code, String action) {
+        return switch (mfaStepUpService.verify(user.getId(), code, action)) {
+            case VERIFIED -> true;
+            case LOCKED ->
+                    throw new AuthException(
+                            ExitCode.ACCOUNT_LOCKED,
+                            "Too many wrong codes. The account is locked for a while; try again"
+                                    + " later.");
+            case INVALID, MFA_NOT_ENABLED -> false;
+        };
     }
 }
