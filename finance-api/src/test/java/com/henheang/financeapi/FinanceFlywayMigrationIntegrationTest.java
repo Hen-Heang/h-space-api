@@ -30,9 +30,12 @@ class FinanceFlywayMigrationIntegrationTest {
 
     private final List<UUID> createdUsers = new ArrayList<>();
 
+    // A real DELETE: User is soft-deleted (@SQLDelete), so deleteById would
+    // only set deleted_at and leave the user - and its finance rows - behind.
+    // The hard delete cascades to every finance_* row the test created.
     @AfterEach
     void deleteUsers() {
-        createdUsers.forEach(userRepository::deleteById);
+        createdUsers.forEach(id -> jdbcTemplate.update("DELETE FROM users WHERE id = ?", id));
     }
 
     private UUID newUser() {

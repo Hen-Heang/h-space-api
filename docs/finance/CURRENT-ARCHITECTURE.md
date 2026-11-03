@@ -120,7 +120,11 @@ Things that are not finance but share the Neon database:
 
 These are **out of scope**. Don't copy them.
 
-## 2. H-Space `finance-api` today
+## 2. H-Space `finance-api` before Phase 1
+
+This section is a snapshot of the scaffold as found on 2026-11-03, kept
+as the baseline. **What's built since** is in `docs/finance-api.md`. The
+gap table below gives each gap's status.
 
 **VERIFIED** (`finance-api/**`, root `build.gradle`):
 
@@ -136,16 +140,16 @@ These are **out of scope**. Don't copy them.
 
 ### Gaps and blockers found in the scaffold
 
-| # | Finding | Label |
-|---|---|---|
-| G1 | `spring-security-oauth2-core` is missing from `finance-api`'s dependencies. `hub-api` needs it because `UserPrincipal` implements `OAuth2User`, so `@AuthenticationPrincipal UserPrincipal` won't compile in `finance-api` without it. | VERIFIED |
-| G2 | There is no `FinanceFlywayConfig` with its own location and history table. Without one, finance migrations would land in `security-api`'s history and break its startup once security adds V7 (the reasoning behind migration-plan decision D4). | VERIFIED |
-| G3 | `application-prod.yml` drifts from `hub-api`'s. It has a pool of 20 (`hub-api` uses 3 with min-idle 1, `docs/database.md` says 5), no `sslmode=require`, no `API_DOCS_ENABLED` gate on Swagger, and no `run-security-migrations: false` equivalent. | VERIFIED |
-| G4 | There is no CI image job, no compose service and no Caddy route for `/api/finance/*` (`.github/workflows/ci.yml`, `deploy/`). | VERIFIED |
-| G5 | `GlobalExceptionHandler` has no handler for `MethodArgumentTypeMismatchException` (non-UUID path id), `DataIntegrityViolationException` or `ConstraintViolationException`. They fall through to the catch-all: **500 with `ex.getMessage()` in `data`**, which can echo SQL or constraint text. This is a `security-api` change and must go in its own PR. It is the same gap as migration-plan audit finding 1.6. | VERIFIED |
-| G6 | No 422 status exists. Validation answers **400** with a per-field map in `data`. Luyra answers 422 with `error.code`. | VERIFIED |
-| G7 | The smoke test probes a fictional path (`/api/finance/v1/accounts`). | VERIFIED |
-| G8 | Memory budget. The VPS guide sizes one API container at 768 MB on a 2 GB host. A third JVM (security + hub + finance) may not fit, so plan the heap and container limit before deploying (decision D-11). | INFERRED |
+| # | Finding | Label | Status |
+|---|---|---|---|
+| G1 | `spring-security-oauth2-core` is missing from `finance-api`'s dependencies. `hub-api` needs it because `UserPrincipal` implements `OAuth2User`, so `@AuthenticationPrincipal UserPrincipal` won't compile in `finance-api` without it. | VERIFIED | **Fixed** (#27) |
+| G2 | There is no `FinanceFlywayConfig` with its own location and history table. Without one, finance migrations would land in `security-api`'s history and break its startup once security adds V7 (the reasoning behind migration-plan decision D4). | VERIFIED | **Fixed** (#27) |
+| G3 | `application-prod.yml` drifts from `hub-api`'s. It has a pool of 20 (`hub-api` uses 3 with min-idle 1, `docs/database.md` says 5), no `sslmode=require`, no `API_DOCS_ENABLED` gate on Swagger, and no `run-security-migrations: false` equivalent. | VERIFIED | **Fixed** (#27) |
+| G4 | There is no CI image job, no compose service and no Caddy route for `/api/finance/*` (`.github/workflows/ci.yml`, `deploy/`). | VERIFIED | Open (Phase 7) |
+| G5 | `GlobalExceptionHandler` has no handler for `MethodArgumentTypeMismatchException` (non-UUID path id), `DataIntegrityViolationException` or `ConstraintViolationException`. They fall through to the catch-all: **500 with `ex.getMessage()` in `data`**, which can echo SQL or constraint text. This is a `security-api` change and must go in its own PR. It is the same gap as migration-plan audit finding 1.6. | VERIFIED | **Fixed in #29**, awaiting merge |
+| G6 | No 422 status exists. Validation answers **400** with a per-field map in `data`. Luyra answers 422 with `error.code`. | VERIFIED | By design; the client adapter maps it (D-5) |
+| G7 | The smoke test probes a fictional path (`/api/finance/v1/accounts`). | VERIFIED | **Fixed** (#27) |
+| G8 | Memory budget. The VPS guide sizes one API container at 768 MB on a 2 GB host. A third JVM (security + hub + finance) may not fit, so plan the heap and container limit before deploying (decision D-11). | INFERRED | Open (Phase 7) |
 
 ## 3. Existing vs proposed: summary
 

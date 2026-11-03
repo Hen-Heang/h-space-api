@@ -1,6 +1,7 @@
 package com.henheang.financeapi.controller;
 
 import com.henheang.financeapi.payload.IdResponse;
+import com.henheang.financeapi.payload.transaction.BulkTransactionRequest;
 import com.henheang.financeapi.payload.transaction.TransactionListQuery;
 import com.henheang.financeapi.payload.transaction.TransactionRequest;
 import com.henheang.financeapi.service.FinanceTransactionService;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 // Same paths and payloads as Luyra's app/api/finance/transactions routes
@@ -72,6 +74,34 @@ public class FinanceTransactionController extends BaseController {
             @PathVariable UUID id,
             @Valid @RequestBody TransactionRequest request) {
         return ok(transactionService.update(principal.getId(), id, request));
+    }
+
+    @Operation(
+            summary = "Delete or recategorize many transactions",
+            description =
+                    "{action: delete, ids} or {action: recategorize, ids, categoryId (null clears"
+                            + " it)}. 1-200 distinct ids. Ids that aren't the caller's are skipped;"
+                            + " affected counts the rows that changed. Recategorize needs the"
+                            + " caller's category, of a type that fits every selected row.")
+    @PostMapping("/bulk")
+    public Object bulk(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody BulkTransactionRequest request) {
+        return ok(transactionService.bulk(principal.getId(), request));
+    }
+
+    @Operation(
+            summary = "Suggest descriptions",
+            description =
+                    "Past descriptions containing q (1-100 chars), at most 6, from the last 365"
+                            + " days (Asia/Seoul). Ranked by uses, tripled for a prefix match, then"
+                            + " recency. type filters to income or expense.")
+    @GetMapping("/suggestions")
+    public Object suggestions(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String type) {
+        return ok(transactionService.suggest(principal.getId(), q, type));
     }
 
     @DeleteMapping("/{id}")

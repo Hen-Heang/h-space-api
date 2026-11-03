@@ -27,6 +27,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Two simultaneous creates of the same name (differing only in case) for one user: whichever of the
@@ -45,13 +46,15 @@ class FinanceLookupConcurrencyIntegrationTest {
     @Autowired private FinancePaymentMethodRepository paymentMethodRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private final List<UUID> createdUsers = new ArrayList<>();
 
     @AfterEach
     void deleteUsers() {
-        // ON DELETE CASCADE removes their finance rows.
-        createdUsers.forEach(userRepository::deleteById);
+        // A real DELETE, cascading to their finance rows: User is
+        // soft-deleted (@SQLDelete), so deleteById would leave both behind.
+        createdUsers.forEach(id -> jdbcTemplate.update("DELETE FROM users WHERE id = ?", id));
     }
 
     private UUID newUser() {

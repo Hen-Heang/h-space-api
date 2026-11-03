@@ -1,10 +1,14 @@
 package com.henheang.financeapi.service.impl;
 
+import com.henheang.financeapi.config.FinanceTime;
 import com.henheang.financeapi.domain.FinanceCategory;
 import com.henheang.financeapi.domain.FinancePaymentMethod;
 import com.henheang.financeapi.domain.FinanceTransaction;
 import com.henheang.financeapi.domain.money.KrwConverter;
 import com.henheang.financeapi.domain.money.KrwConverter.ResolvedAmounts;
+import com.henheang.financeapi.payload.transaction.BulkTransactionRequest;
+import com.henheang.financeapi.payload.transaction.BulkTransactionResponse;
+import com.henheang.financeapi.payload.transaction.DescriptionSuggestionResponse;
 import com.henheang.financeapi.payload.transaction.TransactionListQuery;
 import com.henheang.financeapi.payload.transaction.TransactionPageResponse;
 import com.henheang.financeapi.payload.transaction.TransactionRequest;
@@ -15,12 +19,14 @@ import com.henheang.financeapi.repository.FinancePaymentMethodRepository;
 import com.henheang.financeapi.repository.FinanceTransactionRepository;
 import com.henheang.financeapi.repository.TransactionFilter;
 import com.henheang.financeapi.repository.TransactionSort;
+import com.henheang.financeapi.repository.TransactionSuggestionRepository;
 import com.henheang.financeapi.service.FinanceTransactionService;
 import com.henheang.securityapi.exception.BadRequestException;
 import com.henheang.securityapi.exception.ResourceNotFoundException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,9 +55,16 @@ public class FinanceTransactionServiceImpl implements FinanceTransactionService 
 
     private static final String BOTH = "both";
 
+    // Luyra's SUGGESTION_LIMIT, 365-day window and q max length.
+    private static final int SUGGESTION_LIMIT = 6;
+    private static final int SUGGESTION_WINDOW_DAYS = 365;
+    private static final int SUGGESTION_QUERY_MAX = 100;
+
     private final FinanceTransactionRepository transactionRepository;
     private final FinanceCategoryRepository categoryRepository;
     private final FinancePaymentMethodRepository paymentMethodRepository;
+    private final TransactionSuggestionRepository suggestionRepository;
+    private final FinanceTime financeTime;
 
     @Override
     @Transactional(readOnly = true)
@@ -106,6 +119,65 @@ public class FinanceTransactionServiceImpl implements FinanceTransactionService 
     @Transactional
     public void delete(UUID userId, UUID id) {
         transactionRepository.delete(findOwned(userId, id));
+    }
+
+    // Luyra's applyBulkTransactionAction, in one transaction. Ids that aren't
+    // the caller's (or no longer exist) are skipped, and only the rows that
+    // changed count. Recategorize also checks the category is the caller's
+    // and fits every selected row, so a bulk edit can't produce a row the
+    // single edit would refuse.
+    @Override
+    @Transactional
+    public BulkTransactionResponse bulk(UUID userId, BulkTransactionRequest request) {
+        List<UUID> ids = request.getIds();
+        if (new HashSet<>(ids).size() != ids.size()) {
+            throw new BadRequestException("Duplicate transaction");
+        }
+        if (BulkTransactionRequest.DELETE.equals(request.getAction())) {
+            return new BulkTransactionResponse(transactionRepository.deleteAllForUser(userId, ids));
+        }
+
+        // categoryId is a three-state Optional: absent (null) is an error,
+        // an explicit JSON null (empty) clears the category. Comparing it to
+        // null is intentional - don't "fix" it to isEmpty().
+        if (request.getCategoryId() == null) {
+            throw new BadRequestException("categoryId is required to recategorize");
+        }
+        UUID categoryId = request.getCategoryId().orElse(null);
+        FinanceCategory category = ownedCategory(userId, categoryId);
+        List<FinanceTransaction> rows = transactionRepository.lockAllForUser(userId, ids);
+        // category is null when clearing, so there is no type to check.
+        if (category != null && !BOTH.equals(category.getType())) {
+            boolean mismatch = rows.stream().anyMatch(t -> !category.getType().equals(t.getType()));
+            if (mismatch) {
+                throw new BadRequestException(
+                        category.getName()
+                                + " is an "
+                                + category.getType()
+                                + " category, but the selection includes "
+                                + ("expense".equals(category.getType()) ? "income." : "expenses."));
+            }
+        }
+        rows.forEach(t -> t.setCategoryId(categoryId));
+        transactionRepository.flush();
+        return new BulkTransactionResponse(rows.size());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DescriptionSuggestionResponse> suggest(UUID userId, String query, String type) {
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) {
+            throw new BadRequestException("q is required");
+        }
+        if (q.length() > SUGGESTION_QUERY_MAX) {
+            throw new BadRequestException("q must be at most 100 characters");
+        }
+        if (type != null && !type.matches(TransactionValues.TYPES)) {
+            throw new BadRequestException(TransactionValues.TYPE_MESSAGE);
+        }
+        LocalDate since = financeTime.today().minusDays(SUGGESTION_WINDOW_DAYS);
+        return suggestionRepository.suggest(userId, q, type, since, SUGGESTION_LIMIT);
     }
 
     // Create and update share every rule: update is a full replace.

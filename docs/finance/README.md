@@ -1,9 +1,16 @@
 # Finance (Luyra → `finance-api`) — preparation docs
 
-Status: **Phase 0 (analysis and preparation). No finance code, tables or
-migrations exist yet.** Written 2026-11-03. Nothing here has been approved
-for implementation. Phase 1 starts only after the owner approves it
-explicitly.
+Status (2026-11-03):
+
+- **Phase 0** (analysis and preparation) is done.
+- **Phases 1a, 1b and 2** are built in stacked PRs, not merged yet:
+  - #27: categories, payment methods
+  - #28: transactions
+  - #30: bulk actions, suggestions
+- **Task 0.5** (shared error handler) is in #29.
+- **Phase 3 is paused** until those merge. Each later phase starts only
+  after the owner approves it explicitly. Current per-phase status is in
+  [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 
 This folder covers moving the **Luyra personal-finance backend**
 (Next.js Route Handlers on Neon, sign-in through Supabase Auth) into the
