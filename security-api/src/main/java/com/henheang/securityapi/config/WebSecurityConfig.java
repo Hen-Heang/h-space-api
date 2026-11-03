@@ -1,5 +1,6 @@
 package com.henheang.securityapi.config;
 
+import com.henheang.apicore.components.RequestIdFilter;
 import com.henheang.securityapi.security.*;
 import java.util.Arrays;
 import java.util.List;
@@ -142,8 +143,10 @@ public class WebSecurityConfig {
                         "Accept",
                         "Origin",
                         "Access-Control-Request-Method",
-                        "Access-Control-Request-Headers"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+                        "Access-Control-Request-Headers",
+                        RequestIdFilter.HEADER));
+        // X-Request-Id is exposed so the web app can show it in an error message.
+        configuration.setExposedHeaders(List.of("Authorization", RequestIdFilter.HEADER));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

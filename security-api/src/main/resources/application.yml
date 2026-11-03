@@ -149,3 +149,8 @@ management:
   health:
     mail:
       enabled: false
+
+# Prints the request's X-Request-Id (RequestIdFilter in api-core) on every log line.
+logging:
+  pattern:
+    correlation: "[%X{requestId:-}] "
