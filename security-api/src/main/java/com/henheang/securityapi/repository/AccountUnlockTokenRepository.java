@@ -16,7 +16,7 @@ public interface AccountUnlockTokenRepository extends JpaRepository<AccountUnloc
 
     @Modifying
     @Query("DELETE FROM AccountUnlockToken t WHERE t.expiryDateTime < ?1")
-    void deleteAllExpiredTokens(LocalDateTime now);
+    int deleteAllExpiredTokens(LocalDateTime now);
 
     Optional<AccountUnlockToken> findByToken(String token);
 }

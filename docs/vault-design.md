@@ -217,7 +217,9 @@ as-is.
 - **Limits**: at most 1,000 items per user; an item's ciphertext at most
   16,384 characters.
 - **Deleted accounts**: users are soft-deleted, so `VaultCleanupTask` purges
-  the vault rows of deleted accounts every hour.
+  the vault rows of deleted accounts every hour (`hub.vault.cleanup-cron`,
+  `-` turns it off), under `ScheduledJobLock` so only one hub-api instance
+  purges at a time.
 
 ## 9. Independent security review (gate before real data)
 

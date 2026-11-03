@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -101,17 +100,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             token.setRevoked(true);
             refreshTokenRepository.save(token);
         }
-    }
-
-    @Transactional
-    @Scheduled(cron = "0 0 0 * * ?") // Run at midnight every day
-    public void deleteExpiredTokens() {
-        Instant now = Instant.now();
-        List<RefreshToken> expiredTokens =
-                refreshTokenRepository.findAll().stream()
-                        .filter(token -> token.getExpiryDate().isBefore(now))
-                        .toList();
-        refreshTokenRepository.deleteAll(expiredTokens);
     }
 
     // Idempotent: an unknown or already-revoked token is already as signed
