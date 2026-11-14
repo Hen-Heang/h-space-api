@@ -27,15 +27,24 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Value("${jwt.refresh-token.expiration}")
     private String refreshTokenExpirationString;
 
+    // Each sign-in is its own session: signing in on a phone must not end the
+    // laptop's session. Bounded so abandoned sign-ins can't pile up forever.
+    @Value("${jwt.refresh-token.max-active-per-user:10}")
+    private int maxActiveSessionsPerUser = 10;
+
     @Override
     @Transactional
     public RefreshToken createRefreshToken(User user) {
-        // First, revoke all existing tokens for this user
-        List<RefreshToken> existingTokens =
-                refreshTokenRepository.findAllByUserAndRevokedFalse(user);
-        for (RefreshToken token : existingTokens) {
-            token.setRevoked(true);
-            refreshTokenRepository.save(token);
+        // Keep room for the new session: if the user is at the cap, drop the
+        // oldest live ones. Rotation spends its own token first, so replacing
+        // a session never evicts another.
+        List<RefreshToken> active =
+                refreshTokenRepository.findActiveByUserOldestFirst(user, Instant.now());
+        int excess = active.size() - (maxActiveSessionsPerUser - 1);
+        for (int i = 0; i < excess; i++) {
+            RefreshToken oldest = active.get(i);
+            oldest.setRevoked(true);
+            refreshTokenRepository.save(oldest);
         }
 
         // Create a new refresh token. Only its SHA-256 hash is persisted, so a
@@ -89,6 +98,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         }
     }
 
+    @Override
     @Transactional
     public void revokeAllUserTokens(User user) {
         List<RefreshToken> validTokens = refreshTokenRepository.findAllByUserAndRevokedFalse(user);

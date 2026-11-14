@@ -21,6 +21,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     List<RefreshToken> findAllByUser(User user);
 
+    // The user's live sessions (unrevoked, unexpired), oldest first, so the
+    // service can drop the oldest when a user is over the session cap.
+    @Query(
+            "SELECT r FROM RefreshToken r WHERE r.user = :user AND r.revoked = false"
+                    + " AND r.expiryDate > :now ORDER BY r.createdAt ASC")
+    List<RefreshToken> findActiveByUserOldestFirst(
+            @Param("user") User user, @Param("now") Instant now);
+
     // Revokes the token only if it's still active, in one statement: of two
     // concurrent refreshes with the same token, exactly one gets 1 back.
     @Modifying
