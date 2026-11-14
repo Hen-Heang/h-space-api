@@ -18,5 +18,8 @@ public interface RefreshTokenService {
     // user's email isn't verified.
     Optional<RefreshToken> rotateRefreshToken(String token);
 
+    // Ends every session of the user, e.g. after a password reset.
+    void revokeAllUserTokens(User user);
+
     void logout(@NotBlank(message = "Refresh token is required") String refreshToken);
 }

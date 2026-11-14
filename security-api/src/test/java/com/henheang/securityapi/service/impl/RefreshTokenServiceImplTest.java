@@ -39,18 +39,25 @@ class RefreshTokenServiceImplTest {
         return user;
     }
 
+    private RefreshToken liveSession() {
+        RefreshToken token = new RefreshToken();
+        token.setId(UUID.randomUUID());
+        token.setRevoked(false);
+        token.setExpiryDate(Instant.now().plusSeconds(3600));
+        return token;
+    }
+
     @Test
-    void createRefreshToken_revokesExistingTokensAndIssuesNewOne() {
+    void createRefreshToken_keepsTheUsersOtherSessionsAlive() {
         User user = user();
-        RefreshToken existing = new RefreshToken();
-        existing.setRevoked(false);
-        when(refreshTokenRepository.findAllByUserAndRevokedFalse(user))
-                .thenReturn(List.of(existing));
+        RefreshToken otherDevice = liveSession();
+        when(refreshTokenRepository.findActiveByUserOldestFirst(any(), any()))
+                .thenReturn(List.of(otherDevice));
 
         RefreshToken created = refreshTokenService.createRefreshToken(user);
 
-        assertThat(existing.isRevoked()).isTrue();
-        verify(refreshTokenRepository, times(1)).save(existing);
+        assertThat(otherDevice.isRevoked()).isFalse();
+        verify(refreshTokenRepository, never()).save(otherDevice);
         assertThat(created.getRawToken()).isNotBlank();
         assertThat(created.isRevoked()).isFalse();
         assertThat(created.getUser()).isEqualTo(user);
@@ -59,9 +66,37 @@ class RefreshTokenServiceImplTest {
     }
 
     @Test
-    void createRefreshToken_neverStoresRawTokenInPersistedHash() {
-        when(refreshTokenRepository.findAllByUserAndRevokedFalse(any())).thenReturn(List.of());
+    void createRefreshToken_atTheSessionCap_dropsOnlyTheOldestSession() {
+        ReflectionTestUtils.setField(refreshTokenService, "maxActiveSessionsPerUser", 3);
+        RefreshToken oldest = liveSession();
+        RefreshToken middle = liveSession();
+        RefreshToken newest = liveSession();
+        when(refreshTokenRepository.findActiveByUserOldestFirst(any(), any()))
+                .thenReturn(List.of(oldest, middle, newest));
 
+        refreshTokenService.createRefreshToken(user());
+
+        assertThat(oldest.isRevoked()).isTrue();
+        assertThat(middle.isRevoked()).isFalse();
+        assertThat(newest.isRevoked()).isFalse();
+    }
+
+    @Test
+    void createRefreshToken_belowTheSessionCap_dropsNothing() {
+        ReflectionTestUtils.setField(refreshTokenService, "maxActiveSessionsPerUser", 3);
+        RefreshToken a = liveSession();
+        RefreshToken b = liveSession();
+        when(refreshTokenRepository.findActiveByUserOldestFirst(any(), any()))
+                .thenReturn(List.of(a, b));
+
+        refreshTokenService.createRefreshToken(user());
+
+        assertThat(a.isRevoked()).isFalse();
+        assertThat(b.isRevoked()).isFalse();
+    }
+
+    @Test
+    void createRefreshToken_neverStoresRawTokenInPersistedHash() {
         RefreshToken created = refreshTokenService.createRefreshToken(user());
 
         assertThat(created.getTokenHash()).isNotEqualTo(created.getRawToken());
@@ -132,7 +167,6 @@ class RefreshTokenServiceImplTest {
         token.setRevoked(false);
         token.setExpiryDate(Instant.now().plusSeconds(3600));
         when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(token));
-        when(refreshTokenRepository.findAllByUserAndRevokedFalse(user)).thenReturn(List.of());
         return token;
     }
 
@@ -148,6 +182,21 @@ class RefreshTokenServiceImplTest {
         assertThat(rotated).isPresent();
         assertThat(rotated.get().getRawToken()).isNotBlank();
         assertThat(rotated.get().getUser()).isEqualTo(user);
+    }
+
+    @Test
+    void rotateRefreshToken_leavesTheUsersOtherSessionsAlone() {
+        User user = user();
+        user.setEmailVerified(true);
+        RefreshToken current = activeTokenFor(user);
+        RefreshToken otherDevice = liveSession();
+        when(refreshTokenRepository.revokeIfActive(current.getId())).thenReturn(1);
+        when(refreshTokenRepository.findActiveByUserOldestFirst(any(), any()))
+                .thenReturn(List.of(otherDevice));
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isPresent();
+
+        assertThat(otherDevice.isRevoked()).isFalse();
     }
 
     @Test

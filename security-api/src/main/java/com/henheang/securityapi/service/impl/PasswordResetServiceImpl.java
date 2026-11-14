@@ -11,6 +11,7 @@ import com.henheang.securityapi.security.SecureTokenGenerator;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.service.PasswordResetService;
+import com.henheang.securityapi.service.RefreshTokenService;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final RefreshTokenService refreshTokenService;
     private final SecureTokenGenerator secureTokenGenerator;
 
     @Value("${app.reset-password.token-expiration-minutes:1440}") // Default: 24 hours
@@ -144,6 +146,10 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         User user = passwordResetToken.getUser();
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+
+        // Signing in no longer ends the user's other sessions, so a reset (the
+        // usual reaction to a compromised account) must do it explicitly.
+        refreshTokenService.revokeAllUserTokens(user);
 
         // Delete the token after a successful password reset
         passwordResetTokenRepository.delete(passwordResetToken);
