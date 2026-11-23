@@ -87,8 +87,9 @@ docker compose -f compose.prod.yaml up -d
   `DB_URL`, `JWT_SECRET`, ...) stops `docker compose up` with an error
   naming it.
 - `prod` requires TLS to the database (`sslmode=require` unless `DB_URL`
-  sets a stricter mode) and uses a Hikari pool of 5 / min-idle 1
-  (`DB_POOL_MAX_SIZE` / `DB_POOL_MIN_IDLE`). Flyway migrates through the
+  sets a stricter mode) and uses a Hikari pool of 5 / min-idle 0 that
+  closes idle connections after 60s, so Neon can scale to zero
+  (`DB_POOL_MAX_SIZE` / `DB_POOL_MIN_IDLE` / `DB_POOL_IDLE_TIMEOUT`). Flyway migrates through the
   same pool at startup, so `DB_URL` must be a session endpoint (Neon
   direct, Supabase session pooler) — not a transaction pooler.
 - The API container is limited to 768 MB (`API_MEM_LIMIT`); the image sizes

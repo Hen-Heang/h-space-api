@@ -6,7 +6,16 @@ spring:
       connection-timeout: 20000
       # Sized for one small VPS and a managed database's connection limit.
       maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
-      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      # Let the pool drain to zero when idle so a scale-to-zero database
+      # (Neon) can suspend. Neon suspends after 5 minutes without queries,
+      # but Hikari pings every idle connection it keeps every 2 minutes
+      # (keepaliveTime), so a min-idle of 1 kept the database awake 24/7 and
+      # used up the free plan's compute hours. Idle connections now close
+      # after 60s, before the first keepalive. The cost: the first request
+      # after a quiet spell opens a new connection (and may wake Neon,
+      # a few hundred ms).
+      minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:60000}
       # TLS to the database even when DB_URL doesn't say so. A sslmode in
       # DB_URL takes precedence: use it to go stricter (verify-full), never
       # weaker. Flyway uses this same pool.

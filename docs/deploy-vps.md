@@ -264,7 +264,8 @@ nano .env
 | `FRONTEND_URL` | recommended | Where links in emails point. |
 | `MAIL_USERNAME`, `MAIL_PASSWORD` | recommended | SMTP account (Gmail app password). |
 | `OWNER_EMAIL` | recommended | Becomes admin once verified. |
-| `DB_POOL_MAX_SIZE`, `DB_POOL_MIN_IDLE` | no | Default 5 / 1. |
+| `DB_POOL_MAX_SIZE`, `DB_POOL_MIN_IDLE` | no | Default 5 / 0. Keep min-idle at 0 on Neon: any kept idle connection gets a keepalive ping every 2 minutes, so the database never scales to zero and burns compute hours. |
+| `DB_POOL_IDLE_TIMEOUT` | no | Default `60000` (ms): an idle connection closes after this. Keep it under 120000, Hikari's keepalive interval. |
 | `DB_TRANSACTION_TIMEOUT` | no | Default `30s`: the deadline for each transaction; its queries are cancelled after it and the request answers 503. Flyway isn't affected. |
 | `MAIL_CONNECT_TIMEOUT_MS`, `MAIL_READ_TIMEOUT_MS`, `MAIL_WRITE_TIMEOUT_MS` | no | Default `10000` each. Mail is sent inside the request, so these cap how long a stalled SMTP server can hold it. |
 | `SUPABASE_CONNECT_TIMEOUT`, `SUPABASE_READ_TIMEOUT` | no | Default `5s` / `10s` for the temporary Supabase bridge's admin calls; a timeout answers 502. |

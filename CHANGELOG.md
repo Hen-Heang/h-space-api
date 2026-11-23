@@ -88,6 +88,13 @@ project has no released versions yet, so everything lives under
   quality tooling.
 
 ### Fixed
+- The Neon database never scaled to zero, so the free plan's compute hours
+  ran out mid-month (2026-11) and every query got HTTP 402. The `prod`
+  connection pools kept one idle connection each (`minimum-idle: 1`), and
+  Hikari pings an idle connection every 2 minutes — inside Neon's 5-minute
+  suspend window. `security-api`, `hub-api` and `finance-api` now default to
+  `minimum-idle: 0` with a 60s `idle-timeout` (`DB_POOL_MIN_IDLE`,
+  `DB_POOL_IDLE_TIMEOUT`), so the pool empties when the API is quiet.
 - `gradlew` was committed without its executable bit, so `./gradlew` failed
   with "permission denied" on Linux/macOS checkouts, including CI.
 - `todoapi`'s test class was incorrectly annotated `@SpringBootApplication`
