@@ -87,6 +87,10 @@ jobs:
             mem: 768m
           - module: hub-api
             mem: 640m
+          # Owner-only Engineering Hub (docs/engineering-api.md); deploys
+          # to Railway, where 512m keeps it inside the Hobby plan.
+          - module: engineering-api
+            mem: 512m
 
     env:
       PUBLISH: ${{ github.event_name == 'push' }}
@@ -177,6 +181,12 @@ jobs:
             # security-api here, so let hub-api run those migrations too.
             extra+=(-e HUB_FLYWAY_RUN_SECURITY_MIGRATIONS=true)
           fi
+          if [[ "$MODULE" == "engineering-api" ]]; then
+            # Required at startup; never contacted here (keys load lazily on
+            # the first authenticated request). Synthetic owner id.
+            extra+=(-e SUPABASE_AUTH_ISSUER=https://smoke.supabase.invalid/auth/v1)
+            extra+=(-e ENGINEERING_OWNER_IDS=00000000-0000-4000-8000-000000000001)
+          fi
           docker run -d --name smoke-api --network smoke -p 127.0.0.1:8080:8080 \
             --memory "$MEM" \
             -e SPRING_PROFILES_ACTIVE=prod \
@@ -209,6 +219,15 @@ jobs:
               | tee /dev/stderr | grep -qx 1
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/hub/vault/items)
             echo "unauthenticated /api/hub/vault/items: $code"; [[ "$code" == "401" ]]
+          fi
+          if [[ "$MODULE" == "engineering-api" ]]; then
+            # Its own schema and history table, and owner-only answers.
+            docker exec smoke-db psql -U postgres -d jwt_auth -tAc \
+              "SELECT count(*) FROM engineering.flyway_engineering_schema_history
+               WHERE script = 'V1__engineering_schema.sql' AND success" \
+              | tee /dev/stderr | grep -qx 1
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/engineering/session)
+            echo "unauthenticated /api/engineering/session: $code"; [[ "$code" == "401" ]]
           fi
 
       - name: Record verified image reference

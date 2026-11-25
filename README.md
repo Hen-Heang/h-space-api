@@ -30,6 +30,8 @@ security-api (authentication service — JWT, Google login, MFA, audit)  ── 
     ▲
     │
 open-api / finance-api / hub-api   (siblings, each protected by security-api) ── runnable
+
+api-core ◀── engineering-api   (owner-only Engineering Hub; verifies Supabase tokens itself) ── runnable
 ```
 
 | Module         | Port  | bootJar | Purpose |
@@ -39,6 +41,7 @@ open-api / finance-api / hub-api   (siblings, each protected by security-api) �
 | `open-api`      | 8082  | ✅ on   | Example business API (to-do lists/items) that depends on `security-api` for authentication. |
 | `finance-api`   | 8083  | ✅ on   | Personal finance API (scaffold, no endpoints yet — see `docs/finance-api.md`), secured by `security-api`'s JWT. |
 | `hub-api`       | 8084  | ✅ on   | Personal-hub data moving off Supabase (`/api/hub/**`): H-Vault (`/api/hub/vault`, browser-encrypted ciphertext only, MFA required — `docs/vault-design.md`) and the Quick Capture Inbox (`/api/hub/inbox-items`). Own Flyway history (`flyway_hub_schema_history`). Deployed next to `security-api` (`docs/deploy-vps.md` §15). |
+| `engineering-api` | 8085 | ✅ on | Owner-only Engineering Hub (`/api/engineering/**`): verifies Supabase access tokens against the project's JWKS, owner allowlist + `aal2`. Depends on `api-core` only; own schema `engineering`. Plan and status: `docs/engineering-api.md`. |
 
 Dependency wiring lives in the **root `build.gradle`** (`subprojects { ... }`
 plus per-project blocks), so most dependencies are declared once at the top.

@@ -1,0 +1,32 @@
+# Railway (docs/deploy-railway.md). No fallbacks: a missing DB_URL,
+# SUPABASE_AUTH_ISSUER or ENGINEERING_OWNER_IDS stops startup.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:3}
+      # Drain to zero when idle so Neon can scale to zero: a kept idle
+      # connection gets HikariCP's keepalive every 2 minutes and Neon never
+      # suspends (the November 2026 outage; docs/database.md).
+      minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:60000}
+      # TLS even when DB_URL doesn't say so; a stricter sslmode in DB_URL wins.
+      data-source-properties:
+        sslmode: require
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCS_ENABLED:false}
+
+logging:
+  level:
+    root: WARN
+    com.henheang.engineeringapi: INFO

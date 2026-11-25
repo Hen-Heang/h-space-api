@@ -35,6 +35,14 @@
   (`hub.flyway.run-security-migrations`, default true); in `prod` that's off,
   so `security-api` must have migrated before `hub-api` starts. Tests run in
   schema `hub_api_test`. See `HubFlywayConfig`.
+- `engineering-api` keeps everything in its **own schema** `engineering`
+  (`ENGINEERING_DB_SCHEMA`), with its own migrations
+  (`engineering-api/src/main/resources/db/engineering-migration/`, currently
+  `V1__engineering_schema.sql`) and history table
+  `flyway_engineering_schema_history` inside that schema. It never runs or
+  references `security-api`'s migrations or `users`, and in production it has
+  its own Neon project. Tests run in schema `engineering_api_test`. See
+  `docs/engineering-api.md`.
 - `jwt.secret` has a fallback default only in `local`/`dev`/`test` profiles
   for convenience; `prod` has no fallback and fails fast at startup if
   `JWT_SECRET` isn't set — externalize via env var for anything beyond local,

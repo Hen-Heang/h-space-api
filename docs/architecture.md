@@ -10,9 +10,16 @@ security-api  (auth service, port 8080, runnable)
 open-api      (sample business API, port 8082, runnable, depends on security-api)
 finance-api   (personal finance API, port 8083, runnable, depends on security-api)
 hub-api       (personal-hub data API, port 8084, runnable, depends on security-api)
+
+api-core
+    ^
+engineering-api (owner-only Engineering Hub, port 8085, runnable, depends on api-core ONLY)
 ```
 
 `open-api`, `finance-api` and `hub-api` are siblings — none depends on another.
+`engineering-api` stands apart: it verifies Supabase access tokens itself
+(against the project's published keys, ES256/RS256 only), so it has no
+`security-api` code, tables or scheduled jobs. See `docs/engineering-api.md`.
 
 - `api-core` — `ApiResponse` / `ApiStatus` / `StatusCode` envelope types, pagination, enum converters, interceptors. Everything else depends on this.
   It also holds `RequestIdFilter` (registered by `RequestIdConfig`, first in the servlet chain): every request gets an `X-Request-Id` — the caller's, if it's a plain token of ≤64 `[A-Za-z0-9._-]` chars, else a new UUID — which is echoed in the response (CORS-exposed), put in every error body as `status.requestId` (`GlobalExceptionHandler`, and `RateLimitingFilter`'s 429; omitted on success), and printed on each log line via MDC `requestId` (`logging.pattern.correlation` in each module's `application.yml`). It's a correlation id only: never use it for auth or idempotency, or put it in SQL. security-api `@Import`s the config because it doesn't scan `com.henheang.apicore`.

@@ -5,6 +5,9 @@ Full detail: `docs/architecture.md`.
 - Dependency direction is one-way and must never cycle:
   `api-core` → `security-api` → `open-api` / `finance-api` / `hub-api`
   (the three downstream modules are siblings; none depends on another).
+- `engineering-api` (8085, owner-only Engineering Hub) depends on `api-core`
+  only and verifies Supabase tokens itself — never add a `security-api`
+  dependency or scan to it.
 - `api-core` has no bootJar and isn't runnable — it's the shared library
   (`ApiResponse`/`ApiStatus`/`StatusCode`, pagination, enum converters,
   interceptors). Everything else depends on it, never the reverse.

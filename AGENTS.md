@@ -49,6 +49,9 @@ feature-count-driven demos. Cross-repo context:
   `finance-api` / `hub-api`. The three downstream modules are siblings. Never
   make `api-core` or `security-api` depend on something downstream — stop and
   flag it instead.
+- `engineering-api` (the owner-only Engineering Hub, `docs/engineering-api.md`)
+  depends on `api-core` **only**: it verifies Supabase access tokens itself
+  (JWKS, ES256/RS256), so it must never depend on or scan `security-api`.
 - Do not reintroduce the deleted `legacy/spring-jwt-auth` project.
 - Shared dependency versions live once in the root `build.gradle`
   `subprojects {}`, not per module.
@@ -73,7 +76,9 @@ feature-count-driven demos. Cross-repo context:
 - A schema change is a new `V{n}__description.sql`; never edit an applied
   migration. `security-api` → `security-api/src/main/resources/db/migration/`;
   `hub-api` → `hub-api/src/main/resources/db/hub-migration/` (own version
-  sequence, history table `flyway_hub_schema_history`).
+  sequence, history table `flyway_hub_schema_history`); `engineering-api` →
+  `engineering-api/src/main/resources/db/engineering-migration/` (own schema
+  `engineering`, history table `flyway_engineering_schema_history`).
 
 ## Auth (`security-api`)
 
