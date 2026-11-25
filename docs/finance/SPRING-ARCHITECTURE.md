@@ -55,7 +55,7 @@ No other new framework. Specifically:
 | File | Change |
 |---|---|
 | `config/FinanceFlywayConfig.java` | Copy of `HubFlywayConfig`: location `classpath:db/finance-migration`, table `flyway_finance_schema_history`, `baselineOnMigrate(true)`, `baselineVersion("0")`, and `finance.flyway.run-security-migrations` (default true; **false in prod**). |
-| `application-prod.yml` | Align with `hub-api`: pool `${DB_POOL_MAX_SIZE:3}` / min-idle 1, `sslmode: require`, Swagger behind `API_DOCS_ENABLED`, `finance.flyway.run-security-migrations: false`, `finance.jobs.enabled: ${FINANCE_JOBS_ENABLED:false}` (gap G3). |
+| `application-prod.yml` | Align with `hub-api`: pool `${DB_POOL_MAX_SIZE:3}` / min-idle 0 / idle-timeout 60s (so Neon can scale to zero), `sslmode: require`, Swagger behind `API_DOCS_ENABLED`, `finance.flyway.run-security-migrations: false`, `finance.jobs.enabled: ${FINANCE_JOBS_ENABLED:false}` (gap G3). |
 | `application-test.yml` | Already uses schema `finance_api_test`. Add `finance.jobs.enabled: false`. |
 | `application.yml` | `finance.zone: Asia/Seoul`. Placeholders for FX/Telegram/SMTP/Anthropic are added only in the phases that need them, and never with real defaults. |
 

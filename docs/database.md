@@ -41,6 +41,8 @@
   never commit a real secret.
 - Production uses an external managed PostgreSQL (Neon or Supabase) through
   `DB_URL`; `application-prod.yml` requires TLS (`sslmode=require` by
-  default) and sizes the Hikari pool at 5 / min-idle 1. Flyway migrates
+  default) and sizes the Hikari pool at 5 / min-idle 0, closing idle
+  connections after 60s so Neon can scale to zero (a kept idle connection
+  gets a keepalive ping every 2 minutes, which stops it). Flyway migrates
   through that pool at startup, so `DB_URL` must be a session endpoint, not
   a transaction-mode pooler — see `docs/deploy-vps.md` §1.

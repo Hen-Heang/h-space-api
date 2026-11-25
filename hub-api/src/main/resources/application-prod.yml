@@ -3,7 +3,10 @@ spring:
     hikari:
       connection-timeout: 20000
       maximum-pool-size: ${DB_POOL_MAX_SIZE:3}
-      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      # Drains to zero when idle so Neon can scale to zero - see
+      # security-api's application-prod.yml.
+      minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:60000}
       data-source-properties:
         sslmode: require
     url: ${DB_URL}

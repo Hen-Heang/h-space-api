@@ -24,21 +24,40 @@ class ProdDatabaseConfigTest {
 
         assertThat(prod.getProperty("spring.datasource.hikari.maximum-pool-size", Integer.class))
                 .isEqualTo(5);
-        assertThat(prod.getProperty("spring.datasource.hikari.minimum-idle", Integer.class))
-                .isEqualTo(1);
         assertThat(prod.getProperty("spring.datasource.hikari.data-source-properties.sslmode"))
                 .isEqualTo("require");
     }
 
+    /**
+     * Neon suspends after 5 minutes without queries, and Hikari pings each idle connection it keeps
+     * every 2 minutes (keepaliveTime). So by default the pool must keep no idle connections, and
+     * must close an idle one before its first keepalive - otherwise the database never suspends.
+     */
     @Test
-    void poolSizeComesFromEnvironmentWhenSet() throws IOException {
+    void poolDrainsToZeroWhenIdleByDefaultSoNeonCanSuspend() throws IOException {
+        PropertySourcesPropertyResolver prod = prodResolver(Map.of());
+
+        assertThat(prod.getProperty("spring.datasource.hikari.minimum-idle", Integer.class))
+                .isZero();
+        assertThat(prod.getProperty("spring.datasource.hikari.idle-timeout", Long.class))
+                .isBetween(10_000L, 119_999L); // Hikari's floor is 10s; keepalive is 2 min
+    }
+
+    @Test
+    void poolSettingsComeFromEnvironmentWhenSet() throws IOException {
         PropertySourcesPropertyResolver prod =
-                prodResolver(Map.of("DB_POOL_MAX_SIZE", "3", "DB_POOL_MIN_IDLE", "0"));
+                prodResolver(
+                        Map.of(
+                                "DB_POOL_MAX_SIZE", "3",
+                                "DB_POOL_MIN_IDLE", "1",
+                                "DB_POOL_IDLE_TIMEOUT", "30000"));
 
         assertThat(prod.getProperty("spring.datasource.hikari.maximum-pool-size", Integer.class))
                 .isEqualTo(3);
         assertThat(prod.getProperty("spring.datasource.hikari.minimum-idle", Integer.class))
-                .isEqualTo(0);
+                .isEqualTo(1);
+        assertThat(prod.getProperty("spring.datasource.hikari.idle-timeout", Long.class))
+                .isEqualTo(30_000L);
     }
 
     private static PropertySourcesPropertyResolver prodResolver(Map<String, Object> env)
