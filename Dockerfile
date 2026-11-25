@@ -15,8 +15,10 @@ WORKDIR /workspace
 COPY . .
 # Tests run in CI (./gradlew clean build) against a real Postgres; the image
 # build only packages the jar.
-RUN --mount=type=cache,target=/root/.gradle \
-    sh ./gradlew ":${MODULE}:bootJar" --no-daemon \
+# No BuildKit cache mount for ~/.gradle: Railway rejects one without a
+# Railway-specific id (s/<service-id>-...), and CI's type=gha cache never
+# exported it anyway, so it only ever sped up local rebuilds.
+RUN sh ./gradlew ":${MODULE}:bootJar" --no-daemon \
  && cp "$(find "${MODULE}/build/libs" -name '*.jar' ! -name '*-plain.jar')" app.jar
 
 # Split the jar into layers so a code-only change doesn't re-ship the
