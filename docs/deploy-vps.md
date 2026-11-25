@@ -1,5 +1,10 @@
 # Deploying to a VPS
 
+> **Retired (owner, 2026-11-25).** The VPS is no longer used; h-space-api
+> runs on Railway — see `docs/deploy-railway.md`. This runbook and
+> `deploy/` are kept for reference. Its database-endpoint choice (§1) and
+> backup/restore notes (§8) still apply to any managed PostgreSQL.
+
 A step-by-step runbook for running `security-api` on one small Linux server
 with the files in `deploy/`, using a **managed PostgreSQL** (Neon or
 Supabase). It assumes no prior server experience; commands marked
