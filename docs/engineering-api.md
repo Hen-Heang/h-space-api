@@ -14,9 +14,9 @@ A daily projection against a budget would have flagged it on day 1–2.
 
 | Slice | What | State |
 |---|---|---|
-| S0 | `ScheduledJobLock` and `UserScopedRepositoryRules` moved to `api-core` | separate PR |
-| **S1** | **Module, security, Flyway schema, CI image** | **this change** |
-| S2 | Project registry (CRUD) | next |
+| S0 | `ScheduledJobLock` and `UserScopedRepositoryRules` moved to `api-core` | done (#51) |
+| S1 | Module, security, Flyway schema, CI image | done (#52) |
+| **S2** | **Project registry (CRUD)** | **this change** |
 | S3 | Neon usage client + snapshots + `GET /overview` | |
 | S4 | Daily guard job + email alerts | |
 | S5 | GitHub CI status | |
@@ -32,6 +32,13 @@ A daily projection against a budget would have flagged it on day 1–2.
    `api-core` (S0), so this module needs nothing from `security-api`.
 5. Budget for the `h-space-api` Neon project: 20 CU-hours a month.
 6. This document is the plan of record.
+7. **People use their Supabase session; the job uses a key.** The daily
+   GitHub Actions job (S4) can't hold a browser session, so it gets its own
+   secret, `ENGINEERING_JOB_SECRET`, stored only in Railway and GitHub
+   Actions secrets. It's checked in constant time by a separate security
+   chain and opens **only** `POST /api/engineering/jobs/**`; a session token
+   doesn't open the job endpoint, and the key opens nothing else. Without
+   the variable the job endpoint refuses everything.
 
 ## Architecture
 
@@ -71,12 +78,33 @@ the owner's H-Space session.
   (`ApiErrorWriter`); the reason a token was rejected is never echoed.
 - Only `/actuator/health` (and its liveness/readiness groups) is public.
   Swagger UI exists only when `API_DOCS_ENABLED=true` (on in `dev`).
-- Every future repository method is scoped by the owner id, enforced by
-  `UserScopedRepositoryRules` (S2 adds the architecture test).
+- Every repository method is scoped by the owner id (the token's `sub`,
+  stored as `user_id`), enforced at build time by
+  `UserScopedRepositoryArchTest` (`UserScopedRepositoryRules` from
+  `api-core`'s test fixtures). The owner id never comes from a body, path or
+  query (`CurrentOwner`); request bodies are allowlists — unknown JSON fields
+  are a 400.
 
-**Endpoint so far:** `GET /api/engineering/session` → the caller's `ownerId`,
-`assuranceLevel` and token expiry. A cheap end-to-end check that a real
-session passes the whole chain.
+## Endpoints
+
+All answer in the `ApiResponse` envelope; all need the owner (see above).
+
+| Method + path | Body | Returns |
+|---|---|---|
+| `GET /api/engineering/session` | — | `ownerId`, `assuranceLevel`, token expiry: an end-to-end check of the chain |
+| `GET /api/engineering/projects` | — | the caller's projects, sorted by name |
+| `POST /api/engineering/projects` | project fields, **no** `version` | 201 + the project; 409 for a slug the caller already uses |
+| `GET /api/engineering/projects/{id}` | — | the project; **404 also for another owner's id** |
+| `PUT /api/engineering/projects/{id}` | all fields + the `version` it was read at | the project with `version + 1`; 409 if it changed elsewhere or the slug is taken; 400 without `version` |
+| `DELETE /api/engineering/projects/{id}` | — | 200 |
+
+**Project fields** (`ProjectRequest`, the same rules as the table's CHECK
+constraints in `V2__projects.sql`): `name` (≤ 80), `slug` (lowercase,
+digits, single hyphens; unique per owner), `description` (≤ 500),
+`githubRepo` (`owner/name`), `productionUrl` (`https://`, dotted host, no
+credentials), `hosting` (`vercel|railway|neon|supabase|github|other`),
+`neonProjectId`, `monthlyCostCents` + `costCurrency` (both or neither),
+`computeBudgetCuHours` (for the S4 guard). At most 100 projects per owner.
 
 ## Configuration
 

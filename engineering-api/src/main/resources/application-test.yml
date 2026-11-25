@@ -23,7 +23,9 @@ spring:
 engineering:
   auth:
     issuer: https://engineering-test.supabase.invalid/auth/v1
-    owner-ids: 0b0e5c2a-7d3c-4c8e-9a51-2f6d8e4b1a01
+    # Two synthetic owners, so tests can prove one owner never sees the
+    # other's rows.
+    owner-ids: 0b0e5c2a-7d3c-4c8e-9a51-2f6d8e4b1a01,5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
 
 logging:
   level:

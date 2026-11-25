@@ -32,4 +32,41 @@ class EngineeringSchemaIntegrationTest {
                         String.class);
         assertThat(comment).startsWith("engineering-api (Engineering Hub)");
     }
+
+    @Test
+    void v2_createsTheProjectsTable_inTheSameSchema() {
+        Integer applied =
+                jdbc.queryForObject(
+                        "SELECT count(*) FROM engineering_api_test.flyway_engineering_schema_history"
+                                + " WHERE script = 'V2__projects.sql' AND success",
+                        Integer.class);
+        assertThat(applied).isEqualTo(1);
+
+        Integer table =
+                jdbc.queryForObject(
+                        "SELECT count(*) FROM information_schema.tables"
+                                + " WHERE table_schema = 'engineering_api_test'"
+                                + " AND table_name = 'projects'",
+                        Integer.class);
+        assertThat(table).isEqualTo(1);
+    }
+
+    @Test
+    void theDatabaseItselfRejectsWhatTheApiWouldRefuse() {
+        // Defence in depth: the CHECK constraints hold even if a bug skipped
+        // the request validation. Synthetic ids only.
+        String insert =
+                "INSERT INTO engineering_api_test.projects"
+                        + " (id, user_id, name, slug, hosting, monthly_cost_cents, cost_currency,"
+                        + " created_at, updated_at)"
+                        + " VALUES (gen_random_uuid(), gen_random_uuid(), 'x', ?, 'vercel', ?, ?,"
+                        + " now(), now())";
+        assertRejected(insert, "Not A Slug", null, null);
+        assertRejected(insert, "cost-alone", 500, null);
+    }
+
+    private void assertRejected(String sql, Object... args) {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update(sql, args))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
 }

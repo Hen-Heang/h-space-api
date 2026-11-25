@@ -3,6 +3,11 @@ spring:
     name: engineering-api
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  # Request DTOs are allowlists: an unknown JSON field is a 400, never
+  # silently ignored (so e.g. an "id" or "userId" in a body can't slip in).
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   jpa:
     open-in-view: false
     show-sql: false
