@@ -57,6 +57,9 @@ project has no released versions yet, so everything lives under
   default secrets, a 768 MB API memory limit and capped container logs.
   Step-by-step runbook (endpoint choice, migrations, backups, rollback,
   monitoring): `docs/deploy-vps.md`.
+- Dependabot (`.github/dependabot.yml`): weekly update PRs for Gradle,
+  GitHub Actions, Dockerfile base images and `compose.yaml`; minor/patch
+  bumps are grouped, and Java (Temurin) and Postgres major bumps are skipped.
 
 ### Changed
 - Docs: H-Vault status brought up to date — hub-api deployed and the vault
