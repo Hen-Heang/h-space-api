@@ -1,5 +1,6 @@
 package com.henheang.securityapi.config;
 
+import com.henheang.apicore.config.ScheduledJobLock;
 import com.henheang.securityapi.repository.AccountUnlockTokenRepository;
 import com.henheang.securityapi.repository.EmailVerificationTokenRepository;
 import com.henheang.securityapi.repository.PasswordResetTokenRepository;

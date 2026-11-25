@@ -1,6 +1,6 @@
 package com.henheang.financeapi;
 
-import com.henheang.securityapi.archtest.UserScopedRepositoryRules;
+import com.henheang.apicore.archtest.UserScopedRepositoryRules;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;

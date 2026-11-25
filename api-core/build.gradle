@@ -11,8 +11,12 @@ jar {
     // Spring Boot's plugin tags the plain jar "-plain"; publish it as the
     // main artifact so consumers can depend on com.henheang:api-core.
     archiveClassifier = ''
-    // application*.yml only exists so this module's own context test can
-    // boot; consumers bring their own config, so keep it out of the jar.
+    // api-core ships no Spring config: its application*.yml live in
+    // src/test/resources, only so its own context test can boot. (They
+    // moved there when api-core gained test fixtures, which put this jar -
+    // not build/resources/main - on api-core's own test classpath.) Guard
+    // against one being added to src/main/resources again: consumers bring
+    // their own config.
     exclude 'application*.yml'
 }
 

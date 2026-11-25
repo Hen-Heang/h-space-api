@@ -1,12 +1,12 @@
-package com.henheang.securityapi.archtest;
+package com.henheang.apicore.archtest;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.henheang.securityapi.archtest.fixture.ScopedCaller;
-import com.henheang.securityapi.archtest.fixture.UnscopedCaller;
-import com.henheang.securityapi.archtest.fixture.repository.ScopedFixtureRepository;
-import com.henheang.securityapi.archtest.fixture.repository.UnscopedFixtureRepository;
+import com.henheang.apicore.archtest.fixture.ScopedCaller;
+import com.henheang.apicore.archtest.fixture.UnscopedCaller;
+import com.henheang.apicore.archtest.fixture.repository.ScopedFixtureRepository;
+import com.henheang.apicore.archtest.fixture.repository.UnscopedFixtureRepository;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import java.util.Set;
@@ -19,8 +19,7 @@ import org.junit.jupiter.api.Test;
  */
 class UserScopedRepositoryRulesTest {
 
-    private static final String REPOSITORIES =
-            "com.henheang.securityapi.archtest.fixture.repository";
+    private static final String REPOSITORIES = "com.henheang.apicore.archtest.fixture.repository";
 
     private static JavaClasses importing(Class<?>... types) {
         return new ClassFileImporter().importClasses(types);
