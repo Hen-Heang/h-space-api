@@ -1,4 +1,4 @@
-package com.henheang.securityapi.config;
+package com.henheang.apicore.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

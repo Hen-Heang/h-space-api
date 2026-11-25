@@ -200,7 +200,7 @@ secrets. Never 401, which the web app treats as signed out.
 - The user comes **only** from the JWT principal. `user_id` is never read from
   a body or path. Every repository method takes `userId` (`findByIdAndUserId`,
   …), and admins have no endpoint to read another user's vault. The build
-  enforces this: `UserScopedRepositoryArchTest` (rules in security-api's test
+  enforces this: `UserScopedRepositoryArchTest` (rules in api-core's test
   fixtures, `UserScopedRepositoryRules`) fails on any repository method
   without a used `userId` and on any call to an inherited owner-blind method
   (`findById`, `findAll`, `count`, …). Its only exemptions: keyset

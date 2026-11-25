@@ -1,4 +1,4 @@
-package com.henheang.securityapi.config;
+package com.henheang.apicore.config;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -10,6 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Lets only one process run a scheduled job at a time. security-api's jobs also run inside hub-api,
  * finance-api and open-api (they component-scan {@code com.henheang.securityapi}), and any module
  * may run as more than one container, so every instance's scheduler fires at the same moment.
+ *
+ * <p>Lives in api-core so any module can use it without depending on security-api. Modules that
+ * scan {@code com.henheang.apicore} pick it up; security-api, which doesn't, {@code @Import}s it.
  *
  * <p>Uses a PostgreSQL <em>transaction-scoped</em> advisory lock ({@code
  * pg_try_advisory_xact_lock}) keyed by {@code hashtext(jobName)}. Postgres releases it itself at

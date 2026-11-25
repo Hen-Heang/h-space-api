@@ -1,6 +1,6 @@
-package com.henheang.securityapi.archtest.fixture;
+package com.henheang.apicore.archtest.fixture;
 
-import com.henheang.securityapi.archtest.fixture.repository.ScopedFixtureRepository;
+import com.henheang.apicore.archtest.fixture.repository.ScopedFixtureRepository;
 import java.util.UUID;
 import java.util.function.Supplier;
 

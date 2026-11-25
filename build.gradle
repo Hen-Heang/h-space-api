@@ -10,7 +10,7 @@ ext {
     mapstructVersion = '1.6.3'
     springdocVersion = '2.8.6'
     jjwtVersion = '0.11.5'
-    // Architecture tests (security-api test fixtures, used by hub-api and finance-api).
+    // Architecture tests (api-core test fixtures, used by hub-api and finance-api).
     archunitVersion = '1.5.1'
 }
 
@@ -106,28 +106,29 @@ subprojects {
 
 // Configure api-core module (base module - no dependencies on other modules)
 project(':api-core') {
+    // Test fixtures: test-only helpers that other modules reuse. Holds
+    // UserScopedRepositoryRules, the userId-scoping guard that hub-api's and
+    // finance-api's tests run against their repositories. In api-core so a
+    // module can use it without depending on security-api.
+    apply plugin: 'java-test-fixtures'
+
     dependencies {
         // Only basic dependencies, no project dependencies
         implementation "org.mapstruct:mapstruct:${mapstructVersion}"
         annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
         implementation 'commons-beanutils:commons-beanutils:1.11.0'
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+        testFixturesApi "com.tngtech.archunit:archunit:${archunitVersion}"
+        testFixturesImplementation 'org.springframework.data:spring-data-jpa'
     }
 }
 
 // Configure security-api module
 project(':security-api') {
-    // Test fixtures: test-only helpers that other modules reuse. Holds
-    // UserScopedRepositoryRules, the userId-scoping guard that hub-api's and
-    // finance-api's tests run against their repositories.
-    apply plugin: 'java-test-fixtures'
-
     dependencies {
         // Depend on api-core
         implementation project(':api-core')
-
-        testFixturesApi "com.tngtech.archunit:archunit:${archunitVersion}"
-        testFixturesImplementation 'org.springframework.data:spring-data-jpa'
 
         // Schema migrations - the only schema authority now (see
         // docs/database.md); ddl-auto is "validate" in every profile.
@@ -220,7 +221,7 @@ project(':finance-api') {
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
         // UserScopedRepositoryRules (see UserScopedRepositoryArchTest)
-        testImplementation testFixtures(project(':security-api'))
+        testImplementation testFixtures(project(':api-core'))
     }
 }
 
@@ -248,6 +249,6 @@ project(':hub-api') {
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
         // UserScopedRepositoryRules (see UserScopedRepositoryArchTest)
-        testImplementation testFixtures(project(':security-api'))
+        testImplementation testFixtures(project(':api-core'))
     }
 }

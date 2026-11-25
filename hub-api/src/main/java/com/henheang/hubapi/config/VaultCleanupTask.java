@@ -1,8 +1,8 @@
 package com.henheang.hubapi.config;
 
+import com.henheang.apicore.config.ScheduledJobLock;
 import com.henheang.hubapi.repository.VaultItemRepository;
 import com.henheang.hubapi.repository.VaultKeysetRepository;
-import com.henheang.securityapi.config.ScheduledJobLock;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

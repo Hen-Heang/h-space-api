@@ -1,4 +1,4 @@
-package com.henheang.securityapi.archtest;
+package com.henheang.apicore.archtest;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 

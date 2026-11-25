@@ -25,7 +25,7 @@ hub-api       (personal-hub data API, port 8084, runnable, depends on security-a
 
 hub-api, finance-api and open-api component-scan `com.henheang.securityapi`, so security-api's `@Scheduled` jobs fire in **every** running module, and in every container of each. A job therefore must:
 
-- run in a transaction and call `ScheduledJobLock.tryAcquire(jobName)` first, returning if it gets `false`. That's a PostgreSQL `pg_try_advisory_xact_lock`, released automatically at commit or rollback;
+- run in a transaction and call `ScheduledJobLock.tryAcquire(jobName)` (api-core, `com.henheang.apicore.config`) first, returning if it gets `false`. That's a PostgreSQL `pg_try_advisory_xact_lock`, released automatically at commit or rollback;
 - be idempotent, because the lock stops concurrent runs, not a second run moments later;
 - take its cron from config (`-` disables it) with `zone = "${app.scheduling.zone:UTC}"`, so the run time doesn't depend on the host's timezone;
 - delete or update in bulk queries, never load-all-then-filter.
