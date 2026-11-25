@@ -8,6 +8,12 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- `engineering-api` project registry (S2 of `docs/engineering-api.md`):
+  `/api/engineering/projects` CRUD over a new `projects` table (Flyway V2),
+  scoped by the owner's Supabase user id and guarded at build time by
+  `UserScopedRepositoryArchTest`; per-owner unique slugs, optimistic
+  locking, allowlisted request bodies, matching database CHECK constraints.
+  First MapStruct mapper in the repo.
 - `engineering-api` module (port 8085): the owner-only Engineering Hub,
   slice S1 of `docs/engineering-api.md`. Depends on `api-core` only and
   verifies Supabase access tokens against the project's JWKS (ES256/RS256
