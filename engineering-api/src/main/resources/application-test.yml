@@ -1,0 +1,30 @@
+# Used by `./gradlew test` and CI. Fixed, non-sensitive values only: the
+# issuer below is never contacted (tests replace the key source), and the
+# owner id is synthetic.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+      schema: engineering_api_test
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth_test}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: engineering_api_test
+  flyway:
+    schemas: engineering_api_test
+    default-schema: engineering_api_test
+
+engineering:
+  auth:
+    issuer: https://engineering-test.supabase.invalid/auth/v1
+    owner-ids: 0b0e5c2a-7d3c-4c8e-9a51-2f6d8e4b1a01
+
+logging:
+  level:
+    com.henheang.engineeringapi: WARN

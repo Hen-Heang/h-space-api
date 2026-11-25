@@ -5,3 +5,4 @@ include 'api-core'
 include 'finance-api'
 include 'hub-api'
 
+include 'engineering-api'

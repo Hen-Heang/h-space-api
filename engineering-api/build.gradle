@@ -1,0 +1,10 @@
+
+// Runnable Engineering Hub API (docs/engineering-api.md): owner-only,
+// verifies Supabase access tokens, depends on api-core only.
+bootJar {
+    enabled = true
+}
+
+jar {
+    enabled = true
+}

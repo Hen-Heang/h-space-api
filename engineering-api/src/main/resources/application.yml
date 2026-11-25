@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: engineering-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  jpa:
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        default_schema: ${ENGINEERING_DB_SCHEMA:engineering}
+  # Every transaction gets a deadline, as in the other modules.
+  transaction:
+    default-timeout: ${DB_TRANSACTION_TIMEOUT:30s}
+  datasource:
+    hikari:
+      schema: ${ENGINEERING_DB_SCHEMA:engineering}
+  # Own schema and own history table: engineering-api never shares a
+  # migration history with another module, even on a shared local database.
+  flyway:
+    locations: classpath:db/engineering-migration
+    table: flyway_engineering_schema_history
+    schemas: ${ENGINEERING_DB_SCHEMA:engineering}
+    default-schema: ${ENGINEERING_DB_SCHEMA:engineering}
+
+engineering:
+  auth:
+    # Supabase Auth issuer, e.g. https://<project-ref>.supabase.co/auth/v1 -
+    # tokens' iss must equal it; keys come from <issuer>/.well-known/jwks.json.
+    issuer: ${SUPABASE_AUTH_ISSUER:}
+    audience: ${SUPABASE_AUTH_AUDIENCE:authenticated}
+    # Comma-separated Supabase user ids allowed in. Required: startup fails
+    # without at least one, rather than letting every signed-in user in.
+    owner-ids: ${ENGINEERING_OWNER_IDS:}
+
+# Only health is exposed, detail-free; Railway and the image's HEALTHCHECK
+# use /actuator/health/liveness, which doesn't query the database.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+server:
+  port: ${SERVER_PORT:8085}
+  # Behind Railway's proxy: trust X-Forwarded-For only from private ranges
+  # (see docs/deploy-railway.md, "Client IPs").
+  forward-headers-strategy: native
+
+logging:
+  pattern:
+    correlation: "[%X{requestId:-}] "

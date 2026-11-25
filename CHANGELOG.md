@@ -8,6 +8,12 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- `engineering-api` module (port 8085): the owner-only Engineering Hub,
+  slice S1 of `docs/engineering-api.md`. Depends on `api-core` only and
+  verifies Supabase access tokens against the project's JWKS (ES256/RS256
+  only, issuer, audience, expiry), then requires an allowlisted owner with an
+  `aal2` session. Own schema `engineering` and Flyway history; first endpoint
+  `GET /api/engineering/session`. CI builds and smoke-tests its image.
 - Quick Capture Inbox API in `hub-api` (`/api/hub/inbox-items`, migration
   `V2__inbox_items.sql`), the pilot area of `docs/spring-migration-plan.md`.
   Originally built as a separate `hspace-api` module (V100 in the shared

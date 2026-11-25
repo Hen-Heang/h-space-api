@@ -252,3 +252,27 @@ project(':hub-api') {
         testImplementation testFixtures(project(':api-core'))
     }
 }
+
+// Configure engineering-api module (owner-only Engineering Hub; see
+// docs/engineering-api.md). Depends on api-core ONLY: it verifies Supabase
+// access tokens itself, so it never pulls in security-api's login system,
+// users tables or scheduled jobs.
+project(':engineering-api') {
+    dependencies {
+        implementation project(':api-core')
+
+        // Resource server: verifies Supabase-issued JWTs against the
+        // project's published keys (JWKS). No shared secret, no token minting.
+        implementation 'org.springframework.boot:spring-boot-starter-security'
+        implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+
+        // Own schema and history table in its own database.
+        implementation 'org.flywaydb:flyway-core'
+        implementation 'org.flywaydb:flyway-database-postgresql'
+
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+        testImplementation 'org.springframework.security:spring-security-test'
+    }
+}

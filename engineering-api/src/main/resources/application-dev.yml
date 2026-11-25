@@ -1,0 +1,22 @@
+# Local development (the default profile). Uses the same local Postgres as
+# the other modules, in its own schema "engineering". Set SUPABASE_AUTH_ISSUER
+# and ENGINEERING_OWNER_IDS in your environment (or an ignored
+# application-local.yml) - startup fails without them.
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 5
+      minimum-idle: 0
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jwt_auth}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
