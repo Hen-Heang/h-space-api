@@ -62,6 +62,10 @@ project has no released versions yet, so everything lives under
   bumps are grouped, and Java (Temurin) and Postgres major bumps are skipped.
 
 ### Changed
+- Deployment moved from the VPS to Railway (2026-11-25): new runbook
+  `docs/deploy-railway.md`; `docs/deploy-vps.md` and `deploy/` are marked
+  retired and kept for reference; `AGENTS.md` and `docs/build-and-run.md`
+  point at Railway. h-space-api is a sandbox there with its own database.
 - Docs: H-Vault status brought up to date — hub-api deployed and the vault
   live in production since 2026-11-01, ahead of the independent review, which
   is still open (`docs/vault-design.md` §1, §10, §13; `CLAUDE.md` gate note).

@@ -17,7 +17,7 @@ Spring Boot 3.5.x, PostgreSQL, Flyway.
 | H-Vault (`hub-api/**/vault/**`) | `docs/vault-design.md`, `.claude/rules/vault.md` |
 | moving data off Supabase | `docs/spring-migration-plan.md` |
 | finance tables | `docs/finance-api.md` |
-| build, Docker, deploy | `docs/build-and-run.md`, `docs/deploy-vps.md` |
+| build, Docker, deploy | `docs/build-and-run.md`, `docs/deploy-railway.md` (the VPS runbook `docs/deploy-vps.md` is retired) |
 
 `.claude/rules/*.md` and `.claude/commands/*.md` are plain Markdown checklists
 any agent can follow (e.g. `.claude/commands/migration.md` for a schema change).
@@ -128,9 +128,12 @@ feature-count-driven demos. Cross-repo context:
 2. Implement controller → service → repository with authorization and
    centralized errors.
 3. Test (see Verify), then update the matching `docs/` file.
-4. Deployment target is still open (managed containers vs small VPS). Before
-   production use of anything new: Docker/CI, health checks, HTTPS, secret
-   rotation, logging without PII, backups/restore drills, and rollback.
+4. Deployment target: **Railway** (`docs/deploy-railway.md`; the VPS is
+   retired). It deploys `main` automatically, so nothing merges without a
+   green CI. It's a sandbox with its own database: never H-Space's Neon
+   `hspace`/`luyra`, never `SUPABASE_*` secrets. Before production use of
+   anything new: Docker/CI, health checks, HTTPS, secret rotation, logging
+   without PII, backups/restore drills, and rollback.
 5. Don't modify or deploy unrelated work.
 
 ## Verify

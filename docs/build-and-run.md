@@ -63,9 +63,18 @@ New GHCR packages start **private**: pulling from a server needs a
 `docker login ghcr.io` with a token that has `read:packages`, or change the
 package's visibility in GitHub (Profile → Packages → security-api).
 
-### Production on a VPS (`deploy/`)
+### Production on Railway
 
-Full step-by-step runbook (database endpoint choice, server setup, first
+h-space-api runs on Railway (since 2026-11-25), as a sandbox that H-Space's
+web app doesn't call. Railway builds this `Dockerfile` from `main` on every
+push, so CI's `build` and `image` jobs are the gate before merging. It needs
+its **own** database, never Neon `hspace` or `luyra`, and no `SUPABASE_*`
+variables. Runbook (service settings, variables, first deploy, checks,
+rollback, cost): `docs/deploy-railway.md`.
+
+### Production on a VPS (`deploy/`) — retired
+
+No longer used (2026-11-25); kept for reference. Full step-by-step runbook (database endpoint choice, server setup, first
 deploy, migrations and backups, updates, rollback, monitoring,
 troubleshooting): `docs/deploy-vps.md`.
 
