@@ -23,6 +23,14 @@ updates:
       # Patch bumps still come through.
       - dependency-name: "io.jsonwebtoken:*"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Spring Boot 4 (and springdoc 3, built for it) is a migration across
+      # every module - Jackson 3, Spring Framework/Security 7, Hibernate 7 -
+      # not a routine bump. Merged red as #46/#47 and reverted. Do it as its
+      # own planned change; minor and patch updates on 3.x still come through.
+      - dependency-name: "org.springframework.boot"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "org.springdoc:*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "deps"
 
