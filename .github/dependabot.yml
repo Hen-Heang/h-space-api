@@ -16,6 +16,13 @@ updates:
     groups:
       gradle-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # jjwt is pre-1.0, so a "minor" bump can break its API: 0.11 -> 0.13
+      # removed Jwts.parserBuilder() and failed the grouped PR (#43).
+      # Upgrade it on purpose, with JwtTokenProvider's and the bridge's tests.
+      # Patch bumps still come through.
+      - dependency-name: "io.jsonwebtoken:*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     commit-message:
       prefix: "deps"
 
