@@ -7,11 +7,11 @@ plugins {
 // Shared dependency versions used by more than one module. Module-specific
 // dependency versions stay local to that module's `project(':x') { }` block.
 ext {
-    mapstructVersion = '1.5.5.Final'
+    mapstructVersion = '1.6.3'
     springdocVersion = '2.8.6'
-    jjwtVersion = '0.11.5'
+    jjwtVersion = '0.13.0'
     // Architecture tests (security-api test fixtures, used by hub-api and finance-api).
-    archunitVersion = '1.4.1'
+    archunitVersion = '1.5.1'
 }
 
 allprojects {
@@ -110,7 +110,7 @@ project(':api-core') {
         // Only basic dependencies, no project dependencies
         implementation "org.mapstruct:mapstruct:${mapstructVersion}"
         annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
-        implementation 'commons-beanutils:commons-beanutils:1.9.4'
+        implementation 'commons-beanutils:commons-beanutils:1.11.0'
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
     }
 }
@@ -137,7 +137,7 @@ project(':security-api') {
         // Security specific dependencies
         implementation 'com.googlecode.libphonenumber:libphonenumber:9.0.44'
         implementation 'org.springframework.boot:spring-boot-starter-mail'
-        implementation 'org.apache.commons:commons-lang3:3.12.0'
+        implementation 'org.apache.commons:commons-lang3:3.22.0'
         implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
         implementation 'org.springframework.boot:spring-boot-starter-security'
         implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
@@ -149,28 +149,28 @@ project(':security-api') {
         implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 
         // Rate limiting
-        implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+        implementation 'com.bucket4j:bucket4j_jdk17-core:8.22.0'
 
         // TOTP-based MFA (Google Authenticator / Authy compatible)
         implementation 'dev.samstevens.totp:totp:1.7.1'
         // QR code image rendering for the totp lib's ZxingPngQrGenerator
-        implementation 'com.google.zxing:core:3.5.3'
-        implementation 'com.google.zxing:javase:3.5.3'
+        implementation 'com.google.zxing:core:3.5.4'
+        implementation 'com.google.zxing:javase:3.5.4'
 
         // Google Sign-In ID token verification
-        implementation 'com.google.api-client:google-api-client:2.8.0'
+        implementation 'com.google.api-client:google-api-client:2.9.2'
 
         // Mapping
         implementation "org.mapstruct:mapstruct:${mapstructVersion}"
         annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
-        implementation 'commons-beanutils:commons-beanutils:1.9.4'
+        implementation 'commons-beanutils:commons-beanutils:1.11.0'
 
         // Documentation
         implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
         // Permission cache (see CacheConfig / PermissionQueryService)
         implementation 'org.springframework.boot:spring-boot-starter-cache'
-        implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+        implementation 'com.github.ben-manes.caffeine:caffeine:3.3.1'
 
         // Health endpoint for container/orchestrator health checks (see
         // management.* in application.yml)
