@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +17,7 @@ import com.henheang.securityapi.repository.EmailVerificationTokenRepository;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.security.JwtTokenProvider;
 import com.henheang.securityapi.service.EmailService;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -179,6 +181,60 @@ class AccountSecurityIntegrationTest {
 
         mockMvc.perform(jsonPost("/api/auth/login", correctLogin, uniqueClientIp()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void lockedAccount_wrongPassword_getsTheGenericErrorAndDoesNotExtendTheLock() throws Exception {
+        RequestPostProcessor signupIp = uniqueClientIp();
+        String email = uniqueEmail();
+        signUp(email, signupIp);
+        verifyEmail(email, signupIp);
+
+        Map<String, String> wrongLogin = Map.of("email", email, "password", "wrong-password");
+        RequestPostProcessor failIp = uniqueClientIp();
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(jsonPost("/api/auth/login", wrongLogin, failIp))
+                    .andExpect(status().isUnauthorized());
+        }
+        User locked = userRepository.findByEmail(email).orElseThrow();
+        Instant lockedUntil = locked.getLockedUntil();
+        assertThat(lockedUntil).isNotNull();
+
+        // Without the password, a locked account looks like any wrong login.
+        mockMvc.perform(jsonPost("/api/auth/login", wrongLogin, uniqueClientIp()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1001));
+        assertThat(userRepository.findByEmail(email).orElseThrow().getLockedUntil())
+                .isEqualTo(lockedUntil);
+
+        // Only the right password learns that the account is locked.
+        Map<String, String> correctLogin = Map.of("email", email, "password", "Password123!");
+        mockMvc.perform(jsonPost("/api/auth/login", correctLogin, uniqueClientIp()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1002));
+    }
+
+    @Test
+    void unverifiedAccount_wrongPassword_getsTheGenericError() throws Exception {
+        RequestPostProcessor ip = uniqueClientIp();
+        String email = uniqueEmail();
+        signUp(email, ip);
+
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/login",
+                                Map.of("email", email, "password", "wrong-password"),
+                                ip))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1001));
+
+        mockMvc.perform(
+                        jsonPost(
+                                "/api/auth/login",
+                                Map.of("email", email, "password", "Password123!"),
+                                ip))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status.code").value(1003));
     }
 
     @Test

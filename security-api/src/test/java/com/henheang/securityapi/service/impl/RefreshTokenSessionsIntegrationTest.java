@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.RefreshToken;
 import com.henheang.securityapi.domain.User;
+import com.henheang.securityapi.repository.AuditLogRepository;
 import com.henheang.securityapi.repository.RefreshTokenRepository;
 import com.henheang.securityapi.repository.UserRepository;
 import com.henheang.securityapi.service.RefreshTokenService;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Each sign-in is its own session: a second sign-in (another device or browser) must not end the
@@ -30,6 +33,7 @@ class RefreshTokenSessionsIntegrationTest {
     @Autowired private RefreshTokenService refreshTokens;
     @Autowired private RefreshTokenRepository refreshTokenRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private AuditLogRepository auditLogRepository;
 
     private final List<User> created = new ArrayList<>();
 
@@ -37,6 +41,11 @@ class RefreshTokenSessionsIntegrationTest {
     void cleanUp() {
         for (User user : created) {
             refreshTokenRepository.deleteAll(refreshTokenRepository.findAllByUser(user));
+            // Reuse detection writes an audit row that references the user.
+            auditLogRepository.deleteAll(
+                    auditLogRepository
+                            .findAllByUserIdOrderByCreatedAtDesc(user.getId(), Pageable.unpaged())
+                            .getContent());
             userRepository.deleteById(user.getId());
         }
     }
@@ -86,6 +95,25 @@ class RefreshTokenSessionsIntegrationTest {
         refreshTokens.rotateRefreshToken(laptop.getRawToken()).orElseThrow();
 
         assertThat(refreshTokens.rotateRefreshToken(laptop.getRawToken())).isEmpty();
+    }
+
+    @Test
+    void replayingARotatedTokenAfterTheGraceWindow_endsThatSignInChainOnly() {
+        User user = user();
+        RefreshToken laptop = refreshTokens.createRefreshToken(user);
+        RefreshToken phone = refreshTokens.createRefreshToken(user);
+        RefreshToken laptopNext =
+                refreshTokens.rotateRefreshToken(laptop.getRawToken()).orElseThrow();
+        // Pretend the rotation happened a minute ago, past the reuse grace.
+        RefreshToken spent = refreshTokenRepository.findById(laptop.getId()).orElseThrow();
+        assertThat(spent.getRotatedAt()).isNotNull();
+        spent.setRotatedAt(Instant.now().minusSeconds(60));
+        refreshTokenRepository.saveAndFlush(spent);
+
+        assertThat(refreshTokens.rotateRefreshToken(laptop.getRawToken())).isEmpty();
+
+        assertThat(valid(laptopNext)).isFalse();
+        assertThat(valid(phone)).isTrue();
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.henheang.securityapi.exception.AuthException;
 import com.henheang.securityapi.repository.EmailLoginCodeRepository;
 import com.henheang.securityapi.service.EmailLoginCodeService;
 import com.henheang.securityapi.service.EmailService;
+import com.henheang.securityapi.utils.LogMasking;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -78,7 +79,8 @@ public class EmailLoginCodeServiceImpl implements EmailLoginCodeService {
                 && !existing.get().isExpired(now)
                 && existing.get().getCreatedAt() != null
                 && existing.get().getCreatedAt().plus(resendCooldown).isAfter(now)) {
-            logger.info("Sign-in code re-requested within cooldown for {}", email);
+            logger.info(
+                    "Sign-in code re-requested within cooldown for {}", LogMasking.email(email));
             return;
         }
         existing.ifPresent(
@@ -97,12 +99,12 @@ public class EmailLoginCodeServiceImpl implements EmailLoginCodeService {
         emailLoginCodeRepository.save(loginCode);
 
         if (!emailService.sendLoginCodeEmail(email, code, codeTtl.toMinutes())) {
-            logger.error("Failed to send sign-in code to {}", email);
+            logger.error("Failed to send sign-in code to {}", LogMasking.email(email));
             emailLoginCodeRepository.delete(loginCode);
             throw new AuthException(
                     StatusCode.SYSTEM_ERROR, "Couldn't send the sign-in code. Try again later.");
         }
-        logger.info("Sign-in code sent to {}", email);
+        logger.info("Sign-in code sent to {}", LogMasking.email(email));
     }
 
     // Own transaction: the caller throws after a wrong code, and rolling that
@@ -136,7 +138,9 @@ public class EmailLoginCodeServiceImpl implements EmailLoginCodeService {
         loginCode.setAttempts(loginCode.getAttempts() + 1);
         if (loginCode.getAttempts() >= maxAttempts) {
             logger.warn(
-                    "Sign-in code for {} discarded after {} wrong attempts", email, maxAttempts);
+                    "Sign-in code for {} discarded after {} wrong attempts",
+                    LogMasking.email(email),
+                    maxAttempts);
             emailLoginCodeRepository.delete(loginCode);
         } else {
             emailLoginCodeRepository.save(loginCode);

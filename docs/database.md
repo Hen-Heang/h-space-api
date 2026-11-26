@@ -5,7 +5,8 @@
 - Schema is managed by **Flyway** (`security-api/src/main/resources/db/migration/`,
   currently `V1__baseline.sql`, `V2__account_security_tokens.sql`,
   `V3__mfa_recovery_codes.sql`, `V4__username_and_email_login_codes.sql`,
-  `V5__signup_invites.sql`, `V6__mfa_last_used_step.sql`) — migrations run
+  `V5__signup_invites.sql`, `V6__mfa_last_used_step.sql`,
+  `V7__refresh_token_families.sql`) — migrations run
   automatically on startup.
   In `security-api`, `spring.jpa.hibernate.ddl-auto` is `validate` in every
   profile, `test` included — Hibernate never creates/alters the schema

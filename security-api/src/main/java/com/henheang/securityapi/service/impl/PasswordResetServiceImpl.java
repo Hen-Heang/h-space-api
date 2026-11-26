@@ -12,6 +12,7 @@ import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.service.PasswordResetService;
 import com.henheang.securityapi.service.RefreshTokenService;
+import com.henheang.securityapi.utils.LogMasking;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -47,14 +48,15 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         Optional<User> userOptional = userRepository.findByEmail(email);
 
         if (userOptional.isEmpty()) {
-            logger.warn("Password reset requested for non-existent email: {}", email);
+            logger.warn(
+                    "Password reset requested for non-existent email: {}", LogMasking.email(email));
             // For security reasons, we don't reveal whether the email exists or not
             // The service will appear to succeed, but no email will be sent
             return;
         }
 
         User user = userOptional.get();
-        logger.info("Creating password reset token for user: {}", email);
+        logger.info("Creating password reset token for user: {}", LogMasking.email(email));
 
         // Delete any existing password reset tokens for this user
         passwordResetTokenRepository.deleteAll(passwordResetTokenRepository.findByUser(user));
@@ -72,7 +74,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         // Construct reset password link
         String resetPasswordLink =
                 String.format("%s/reset-password?token=%s", frontendUrl, resetToken);
-        logger.info("Generated reset password link for user: {}", email);
+        logger.info("Generated reset password link for user: {}", LogMasking.email(email));
 
         // Send the email
         try {
@@ -81,7 +83,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                             user.getEmail(), user.getName(), resetPasswordLink);
 
             if (!emailSent) {
-                logger.error("Failed to send password reset email to: {}", email);
+                logger.error("Failed to send password reset email to: {}", LogMasking.email(email));
                 // Delete the token since email couldn't be sent
                 passwordResetTokenRepository.delete(passwordResetToken);
                 throw new AuthException(
@@ -89,11 +91,14 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                         "Failed to send password reset email. Please try again later.");
             }
 
-            logger.info("Password reset email sent successfully to: {}", email);
+            logger.info("Password reset email sent successfully to: {}", LogMasking.email(email));
             auditLogService.log(
                     AuditEventType.PASSWORD_RESET_REQUESTED, user.getId(), user.getEmail());
         } catch (Exception e) {
-            logger.error("Error sending password reset email to {}: {}", email, e.getMessage());
+            logger.error(
+                    "Error sending password reset email to {}: {}",
+                    LogMasking.email(email),
+                    e.getMessage());
             // Delete the token since email couldn't be sent
             passwordResetTokenRepository.delete(passwordResetToken);
             throw new AuthException(
@@ -109,7 +114,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 passwordResetTokenRepository.findByToken(token);
 
         if (tokenOptional.isEmpty()) {
-            logger.warn("Invalid password reset token attempted: {}", token);
+            logger.warn("Invalid password reset token attempted");
             return false;
         }
 
@@ -117,9 +122,9 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         boolean isValid = !passwordResetToken.isExpired();
 
         if (!isValid) {
-            logger.info("Expired password reset token attempted: {}", token);
+            logger.info("Expired password reset token attempted");
         } else {
-            logger.info("Valid password reset token validated: {}", token);
+            logger.info("Valid password reset token validated");
         }
 
         return isValid;
@@ -133,13 +138,13 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                         .findByToken(token)
                         .orElseThrow(
                                 () -> {
-                                    logger.warn("Invalid password reset token used: {}", token);
+                                    logger.warn("Invalid password reset token used");
                                     return new AuthException(
                                             StatusCode.PASSWORD_RESET_TOKEN_INVALID);
                                 });
 
         if (passwordResetToken.isExpired()) {
-            logger.info("Expired password reset token used: {}", token);
+            logger.info("Expired password reset token used");
             passwordResetTokenRepository.delete(passwordResetToken);
             throw new AuthException(StatusCode.PASSWORD_RESET_TOKEN_EXPIRED);
         }
@@ -156,6 +161,6 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         passwordResetTokenRepository.delete(passwordResetToken);
 
         auditLogService.log(AuditEventType.PASSWORD_RESET_COMPLETED, user.getId(), user.getEmail());
-        logger.info("Password successfully reset for user: {}", user.getEmail());
+        logger.info("Password successfully reset for user: {}", LogMasking.email(user.getEmail()));
     }
 }

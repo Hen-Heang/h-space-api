@@ -27,6 +27,7 @@ import com.henheang.securityapi.service.RoleService;
 import com.henheang.securityapi.service.TokenBlacklistService;
 import com.henheang.securityapi.service.UserRoleService;
 import com.henheang.securityapi.service.UserService;
+import com.henheang.securityapi.utils.LogMasking;
 import com.henheang.securityapi.validation.UsernameRules;
 import jakarta.transaction.Transactional;
 import java.time.Duration;
@@ -118,7 +119,10 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (Exception e) {
             logger.error(
-                    "Registration failed for {}: {}", signUpRequest.getEmail(), e.getMessage(), e);
+                    "Registration failed for {}: {}",
+                    LogMasking.email(signUpRequest.getEmail()),
+                    e.getMessage(),
+                    e);
             throw new AuthException(
                     StatusCode.REGISTRATION_FAILED, "Registration failed. Please try again.");
         }
@@ -158,20 +162,22 @@ public class AuthServiceImpl implements AuthService {
             loginHistoryService.recordSuccess(user, user.getEmail());
             return issueTokens(user);
         } catch (LockedException e) {
-            logger.warn("Login rejected for {}: account locked", identifier);
+            logger.warn("Login rejected for {}: account locked", LogMasking.identifier(identifier));
             auditLogService.log(AuditEventType.ACCOUNT_LOCKED, null, identifier);
             loginHistoryService.recordFailure(identifier, "ACCOUNT_LOCKED");
             throw new AuthException(
                     StatusCode.ACCOUNT_LOCKED,
                     "Account is temporarily locked due to too many failed login attempts. Try again later.");
         } catch (DisabledException e) {
-            logger.warn("Login rejected for {}: email not verified", identifier);
+            logger.warn(
+                    "Login rejected for {}: email not verified", LogMasking.identifier(identifier));
             loginHistoryService.recordFailure(identifier, "EMAIL_NOT_VERIFIED");
             throw new AuthException(
                     StatusCode.ACCOUNT_DISABLED,
                     "Please verify your email address before logging in.");
         } catch (AuthenticationException e) {
-            logger.warn("Login failed for {}: {}", identifier, e.getMessage());
+            logger.warn(
+                    "Login failed for {}: {}", LogMasking.identifier(identifier), e.getMessage());
             findByLoginIdentifier(identifier).ifPresent(this::registerFailedLoginAttempt);
             auditLogService.log(AuditEventType.LOGIN_FAILURE, null, identifier);
             loginHistoryService.recordFailure(identifier, "INVALID_CREDENTIALS");
@@ -204,7 +210,9 @@ public class AuthServiceImpl implements AuthService {
                                 EmailLoginCodeService.normalizeEmail(email))
                         .isPresent();
         if (!hasAccount && !accountAccessService.mayCreateAccount(email)) {
-            logger.info("No sign-in code sent to {}: no account and no invite", email);
+            logger.info(
+                    "No sign-in code sent to {}: no account and no invite",
+                    LogMasking.email(email));
             return;
         }
         emailLoginCodeService.sendCode(email);

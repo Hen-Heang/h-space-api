@@ -15,6 +15,7 @@ import com.henheang.securityapi.service.EmailLoginCodeService;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.service.RoleService;
 import com.henheang.securityapi.service.UserRoleService;
+import com.henheang.securityapi.utils.LogMasking;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -157,7 +158,7 @@ public class AccountAccessServiceImpl implements AccountAccessService {
                 frontendUrl + "/register?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8);
         boolean emailSent = emailService.sendInviteEmail(email, signupUrl);
         if (!emailSent) {
-            logger.warn("Invite saved but its email to {} failed to send", email);
+            logger.warn("Invite saved but its email to {} failed to send", LogMasking.email(email));
         }
         auditLogService.log(AuditEventType.SIGNUP_INVITE_SENT, invitedBy, email);
         return new InviteResult(invite, emailSent);
@@ -180,6 +181,6 @@ public class AccountAccessServiceImpl implements AccountAccessService {
             throw new BadRequestException("That invite was already used.");
         }
         signupInviteRepository.delete(invite);
-        logger.info("Revoked invite for {}", invite.getEmail());
+        logger.info("Revoked invite for {}", LogMasking.email(invite.getEmail()));
     }
 }

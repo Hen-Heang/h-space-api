@@ -31,6 +31,12 @@ public class AccountLockoutServiceImpl implements AccountLockoutService {
 
     @Override
     public void registerFailure(User user) {
+        // Already locked: a wrong password now reaches here (the lock is only
+        // reported after a correct one), and it must neither extend the lock
+        // nor send another unlock email each time someone guesses.
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
+            return;
+        }
         int attempts = user.getFailedLoginAttempts() + 1;
         user.setFailedLoginAttempts(attempts);
         boolean justLocked = false;

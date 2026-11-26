@@ -11,6 +11,7 @@ import com.henheang.securityapi.security.SecureTokenGenerator;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.service.EmailVerificationService;
+import com.henheang.securityapi.utils.LogMasking;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -68,7 +69,8 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
                         user.getEmail(), user.getName(), verificationLink);
 
         if (!emailSent) {
-            logger.error("Failed to send verification email to: {}", user.getEmail());
+            logger.error(
+                    "Failed to send verification email to: {}", LogMasking.email(user.getEmail()));
             emailVerificationTokenRepository.delete(verificationToken);
             throw new AuthException(
                     StatusCode.SYSTEM_ERROR,
@@ -77,7 +79,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
         auditLogService.log(
                 AuditEventType.EMAIL_VERIFICATION_REQUESTED, user.getId(), user.getEmail());
-        logger.info("Verification email sent to: {}", user.getEmail());
+        logger.info("Verification email sent to: {}", LogMasking.email(user.getEmail()));
     }
 
     @Override
@@ -85,14 +87,18 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     public void resendVerificationEmail(String email) {
         Optional<User> userOptional = userRepository.findByEmail(email);
         if (userOptional.isEmpty()) {
-            logger.warn("Verification resend requested for non-existent email: {}", email);
+            logger.warn(
+                    "Verification resend requested for non-existent email: {}",
+                    LogMasking.email(email));
             // Don't reveal whether the email exists - appear to succeed either way.
             return;
         }
 
         User user = userOptional.get();
         if (Boolean.TRUE.equals(user.getEmailVerified())) {
-            logger.info("Verification resend requested for already-verified email: {}", email);
+            logger.info(
+                    "Verification resend requested for already-verified email: {}",
+                    LogMasking.email(email));
             return;
         }
 
@@ -121,13 +127,13 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
                         .findByToken(token)
                         .orElseThrow(
                                 () -> {
-                                    logger.warn("Invalid email verification token used: {}", token);
+                                    logger.warn("Invalid email verification token used");
                                     return new AuthException(
                                             StatusCode.EMAIL_VERIFICATION_TOKEN_INVALID);
                                 });
 
         if (verificationToken.isExpired()) {
-            logger.info("Expired email verification token used: {}", token);
+            logger.info("Expired email verification token used");
             emailVerificationTokenRepository.delete(verificationToken);
             throw new AuthException(StatusCode.EMAIL_VERIFICATION_TOKEN_EXPIRED);
         }
@@ -145,6 +151,6 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         emailVerificationTokenRepository.delete(verificationToken);
 
         auditLogService.log(AuditEventType.EMAIL_VERIFIED, user.getId(), user.getEmail());
-        logger.info("Email verified for user: {}", user.getEmail());
+        logger.info("Email verified for user: {}", LogMasking.email(user.getEmail()));
     }
 }

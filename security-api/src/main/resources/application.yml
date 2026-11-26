@@ -57,6 +57,9 @@ jwt:
     expiration: P7D
     # Live sessions (one per sign-in) kept per user; the oldest is dropped past this.
     max-active-per-user: 10
+    # A spent token replayed within this window of its rotation is only refused
+    # (two tabs refreshing at once). Later, it revokes the whole sign-in chain.
+    reuse-grace: PT10S
 
 # AES-256 key (Base64) used to encrypt TOTP secrets at rest - see
 # MfaEncryptionConfig/MfaSecretConverter. Generate with `openssl rand -base64 32`.
