@@ -3,7 +3,6 @@ package com.henheang.securityapi.exception;
 import com.henheang.apicore.components.RequestIdFilter;
 import com.henheang.apicore.components.common.api.ApiResponse;
 import com.henheang.apicore.components.common.api.ApiStatus;
-import com.henheang.apicore.components.common.api.ExitCode;
 import com.henheang.apicore.components.common.api.StatusCode;
 import jakarta.validation.ConstraintViolationException;
 import java.sql.SQLException;
@@ -91,8 +90,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.AUTHENTICATION_FAILED.getCode(),
-                                ExitCode.AUTHENTICATION_FAILED.getMessage()),
+                                StatusCode.AUTHENTICATION_FAILED.getCode(),
+                                StatusCode.AUTHENTICATION_FAILED.getMessage()),
                         ex.getMessage());
 
         return respond(apiResponse, HttpStatus.UNAUTHORIZED);
@@ -104,8 +103,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.INVALID_CREDENTIALS.getCode(),
-                                ExitCode.INVALID_CREDENTIALS.getMessage()),
+                                StatusCode.INVALID_CREDENTIALS.getCode(),
+                                StatusCode.INVALID_CREDENTIALS.getMessage()),
                         ex.getMessage());
 
         return respond(apiResponse, HttpStatus.UNAUTHORIZED);
@@ -117,8 +116,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.INSUFFICIENT_PERMISSIONS.getCode(),
-                                ExitCode.INSUFFICIENT_PERMISSIONS.getMessage()),
+                                StatusCode.INSUFFICIENT_PERMISSIONS.getCode(),
+                                StatusCode.INSUFFICIENT_PERMISSIONS.getMessage()),
                         ex.getMessage());
 
         return respond(apiResponse, HttpStatus.FORBIDDEN);
@@ -130,8 +129,8 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
+                                StatusCode.SYSTEM_ERROR.getCode(),
+                                StatusCode.SYSTEM_ERROR.getMessage()),
                         "This record was modified by someone else - please reload and try again.");
 
         return respond(apiResponse, HttpStatus.CONFLICT);
@@ -236,9 +235,9 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
                         new ApiStatus(
-                                ExitCode.SYSTEM_ERROR.getCode(),
-                                ExitCode.SYSTEM_ERROR.getMessage()),
-                        ExitCode.SYSTEM_ERROR.getMessage());
+                                StatusCode.SYSTEM_ERROR.getCode(),
+                                StatusCode.SYSTEM_ERROR.getMessage()),
+                        StatusCode.SYSTEM_ERROR.getMessage());
 
         return respond(apiResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -315,36 +314,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<ApiResponse<Object>> handleAuthException(
             AuthException ex, WebRequest request) {
-        // The real ExitCode and message, so clients can tell "wrong password"
+        // The real StatusCode and message, so clients can tell "wrong password"
         // from "account locked" without parsing `data`. `data` keeps the
         // message too, for clients that read it from there.
         ApiResponse<Object> apiResponse =
                 new ApiResponse<>(
-                        new ApiStatus(ex.getExitCode().getCode(), ex.getMessage()),
+                        new ApiStatus(ex.getStatusCode().getCode(), ex.getMessage()),
                         ex.getMessage());
 
-        return respond(apiResponse, getHttpStatusForExitCode(ex.getExitCode()));
-    }
-
-    private HttpStatus getHttpStatusForExitCode(ExitCode exitCode) {
-        int code = exitCode.getCode();
-
-        if (code >= 1000 && code < 1100) {
-            return HttpStatus.UNAUTHORIZED; // Authentication errors
-        } else if (code >= 1100 && code < 1200) {
-            return HttpStatus.BAD_REQUEST; // Registration errors
-        } else if (code >= 1200 && code < 1300) {
-            return HttpStatus.BAD_REQUEST; // Password reset errors
-        } else if (code >= 1300 && code < 1400) {
-            return HttpStatus.BAD_REQUEST; // OAuth errors
-        } else if (code >= 1400 && code < 1500) {
-            return HttpStatus.BAD_REQUEST; // Email verification errors
-        } else if (code >= 1500 && code < 1600) {
-            return HttpStatus.BAD_REQUEST; // Account unlock errors
-        } else if (code >= 5000 && code < 6000) {
-            return HttpStatus.INTERNAL_SERVER_ERROR; // System errors
-        } else {
-            return HttpStatus.INTERNAL_SERVER_ERROR; // Default for unknown errors
-        }
+        return respond(apiResponse, HttpStatus.valueOf(ex.getStatusCode().getHttpCode()));
     }
 }

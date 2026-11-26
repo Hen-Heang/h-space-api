@@ -1,6 +1,6 @@
 package com.henheang.securityapi.controller;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.User;
@@ -108,7 +108,7 @@ public class AuthController extends BaseController {
                 .orElseThrow(
                         () ->
                                 new AuthException(
-                                        ExitCode.TOKEN_EXPIRED,
+                                        StatusCode.TOKEN_EXPIRED,
                                         "Refresh token is expired. Please login again."));
     }
 

@@ -10,9 +10,9 @@ Base library, no bootJar, not runnable. Packages:
 - `ApiResponse<T>` / `ApiStatus` / `StatusCode` — the response envelope (see
   `.claude/context/api-style.md` for the actual builder pattern and its
   quirks).
-- `ExitCode` — a second, parallel status-code enum actually used for
-  `security-api`'s domain/auth exceptions (see api-style.md — `StatusCode`
-  and `ExitCode` currently coexist, don't assume they're interchangeable).
+- `StatusCode` also holds the auth codes (1000s–1500s, 5000s, 9999) that
+  `security-api`'s `AuthException` carries — the former `ExitCode` enum was
+  merged into it (see api-style.md).
 - `Pagination` — wraps a Spring Data `Page<?>`; defined but not yet wired
   into any `security-api` controller response as of this writing.
 - `GenericEnum<T,E>` / `AbstractEnumConverter<T,E>` — JSON-serialization-

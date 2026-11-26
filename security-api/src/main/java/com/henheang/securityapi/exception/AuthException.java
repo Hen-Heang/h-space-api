@@ -1,19 +1,19 @@
 package com.henheang.securityapi.exception;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import lombok.Getter;
 
 @Getter
 public class AuthException extends RuntimeException {
-    private final ExitCode exitCode;
+    private final StatusCode statusCode;
 
-    public AuthException(ExitCode exitCode) {
-        super(exitCode.getMessage());
-        this.exitCode = exitCode;
+    public AuthException(StatusCode statusCode) {
+        super(statusCode.getMessage());
+        this.statusCode = statusCode;
     }
 
-    public AuthException(ExitCode exitCode, String customMessage) {
+    public AuthException(StatusCode statusCode, String customMessage) {
         super(customMessage);
-        this.exitCode = exitCode;
+        this.statusCode = statusCode;
     }
 }

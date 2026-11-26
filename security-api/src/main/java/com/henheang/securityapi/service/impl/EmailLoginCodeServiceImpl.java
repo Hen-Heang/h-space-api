@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.EmailLoginCode;
 import com.henheang.securityapi.exception.AuthException;
 import com.henheang.securityapi.repository.EmailLoginCodeRepository;
@@ -100,7 +100,7 @@ public class EmailLoginCodeServiceImpl implements EmailLoginCodeService {
             logger.error("Failed to send sign-in code to {}", email);
             emailLoginCodeRepository.delete(loginCode);
             throw new AuthException(
-                    ExitCode.SYSTEM_ERROR, "Couldn't send the sign-in code. Try again later.");
+                    StatusCode.SYSTEM_ERROR, "Couldn't send the sign-in code. Try again later.");
         }
         logger.info("Sign-in code sent to {}", email);
     }

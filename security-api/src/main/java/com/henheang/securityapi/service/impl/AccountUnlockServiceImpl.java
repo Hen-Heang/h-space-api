@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AccountUnlockToken;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.User;
@@ -114,13 +114,14 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
                         .orElseThrow(
                                 () -> {
                                     logger.warn("Invalid account unlock token used: {}", token);
-                                    return new AuthException(ExitCode.ACCOUNT_UNLOCK_TOKEN_INVALID);
+                                    return new AuthException(
+                                            StatusCode.ACCOUNT_UNLOCK_TOKEN_INVALID);
                                 });
 
         if (unlockToken.isExpired()) {
             logger.info("Expired account unlock token used: {}", token);
             accountUnlockTokenRepository.delete(unlockToken);
-            throw new AuthException(ExitCode.ACCOUNT_UNLOCK_TOKEN_EXPIRED);
+            throw new AuthException(StatusCode.ACCOUNT_UNLOCK_TOKEN_EXPIRED);
         }
 
         User user = unlockToken.getUser();
@@ -142,7 +143,7 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
                         .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (user.isAccountNonLocked()) {
-            throw new AuthException(ExitCode.ACCOUNT_NOT_LOCKED);
+            throw new AuthException(StatusCode.ACCOUNT_NOT_LOCKED);
         }
 
         clearLock(user);

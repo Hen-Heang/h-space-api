@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.EmailVerificationToken;
 import com.henheang.securityapi.domain.User;
@@ -71,7 +71,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             logger.error("Failed to send verification email to: {}", user.getEmail());
             emailVerificationTokenRepository.delete(verificationToken);
             throw new AuthException(
-                    ExitCode.SYSTEM_ERROR,
+                    StatusCode.SYSTEM_ERROR,
                     "Failed to send verification email. Please try again later.");
         }
 
@@ -123,19 +123,19 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
                                 () -> {
                                     logger.warn("Invalid email verification token used: {}", token);
                                     return new AuthException(
-                                            ExitCode.EMAIL_VERIFICATION_TOKEN_INVALID);
+                                            StatusCode.EMAIL_VERIFICATION_TOKEN_INVALID);
                                 });
 
         if (verificationToken.isExpired()) {
             logger.info("Expired email verification token used: {}", token);
             emailVerificationTokenRepository.delete(verificationToken);
-            throw new AuthException(ExitCode.EMAIL_VERIFICATION_TOKEN_EXPIRED);
+            throw new AuthException(StatusCode.EMAIL_VERIFICATION_TOKEN_EXPIRED);
         }
 
         User user = verificationToken.getUser();
         if (Boolean.TRUE.equals(user.getEmailVerified())) {
             emailVerificationTokenRepository.delete(verificationToken);
-            throw new AuthException(ExitCode.EMAIL_ALREADY_VERIFIED);
+            throw new AuthException(StatusCode.EMAIL_ALREADY_VERIFIED);
         }
 
         user.setEmailVerified(true);

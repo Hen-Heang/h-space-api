@@ -11,7 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.SignupInvite;
 import com.henheang.securityapi.domain.User;
@@ -93,8 +93,8 @@ class AccountAccessServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.SIGNUP_INVITE_REQUIRED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.SIGNUP_INVITE_REQUIRED));
     }
 
     @Test

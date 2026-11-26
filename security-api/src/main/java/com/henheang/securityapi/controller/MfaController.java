@@ -1,6 +1,6 @@
 package com.henheang.securityapi.controller;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.AuthException;
@@ -67,7 +67,7 @@ public class MfaController extends BaseController {
     public Object setup(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         User user = userService.getUserById(userPrincipal.getId());
         if (user.isMfaEnabled()) {
-            throw new AuthException(ExitCode.MFA_ALREADY_ENABLED);
+            throw new AuthException(StatusCode.MFA_ALREADY_ENABLED);
         }
 
         String secret = mfaService.generateSecret();
@@ -105,10 +105,10 @@ public class MfaController extends BaseController {
             @Valid @RequestBody MfaCodeRequest request) {
         User user = userService.getUserById(userPrincipal.getId());
         if (user.getMfaSecret() == null) {
-            throw new AuthException(ExitCode.MFA_SETUP_REQUIRED);
+            throw new AuthException(StatusCode.MFA_SETUP_REQUIRED);
         }
         if (!mfaService.verifyCode(user.getMfaSecret(), request.getCode())) {
-            throw new AuthException(ExitCode.MFA_CODE_INVALID);
+            throw new AuthException(StatusCode.MFA_CODE_INVALID);
         }
         user.setMfaEnabled(true);
         userService.saveUser(user);
@@ -132,11 +132,11 @@ public class MfaController extends BaseController {
             @Valid @RequestBody MfaCodeRequest request) {
         User user = userService.getUserById(userPrincipal.getId());
         if (!user.isMfaEnabled()) {
-            throw new AuthException(ExitCode.MFA_NOT_ENABLED);
+            throw new AuthException(StatusCode.MFA_NOT_ENABLED);
         }
         if (!stepUp(user, request.getCode(), "mfa-disable")) {
             auditLogService.log(AuditEventType.MFA_DISABLE_FAILED, user.getId(), user.getEmail());
-            throw new AuthException(ExitCode.MFA_CODE_INVALID);
+            throw new AuthException(StatusCode.MFA_CODE_INVALID);
         }
 
         user.setMfaEnabled(false);
@@ -182,10 +182,10 @@ public class MfaController extends BaseController {
             @Valid @RequestBody MfaCodeRequest request) {
         User user = userService.getUserById(userPrincipal.getId());
         if (!user.isMfaEnabled()) {
-            throw new AuthException(ExitCode.MFA_NOT_ENABLED);
+            throw new AuthException(StatusCode.MFA_NOT_ENABLED);
         }
         if (!stepUp(user, request.getCode(), "mfa-backup-codes-regenerate")) {
-            throw new AuthException(ExitCode.MFA_CODE_INVALID);
+            throw new AuthException(StatusCode.MFA_CODE_INVALID);
         }
 
         var backupCodes = mfaBackupCodeService.regenerate(user);
@@ -201,7 +201,7 @@ public class MfaController extends BaseController {
             case VERIFIED -> true;
             case LOCKED ->
                     throw new AuthException(
-                            ExitCode.ACCOUNT_LOCKED,
+                            StatusCode.ACCOUNT_LOCKED,
                             "Too many wrong codes. The account is locked for a while; try again"
                                     + " later.");
             case INVALID, MFA_NOT_ENABLED -> false;

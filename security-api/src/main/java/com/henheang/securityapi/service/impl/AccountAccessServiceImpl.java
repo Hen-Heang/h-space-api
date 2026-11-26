@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.SignupInvite;
 import com.henheang.securityapi.domain.User;
@@ -92,7 +92,7 @@ public class AccountAccessServiceImpl implements AccountAccessService {
     public void assertMayCreateAccount(String email) {
         if (!mayCreateAccount(email)) {
             throw new AuthException(
-                    ExitCode.SIGNUP_INVITE_REQUIRED,
+                    StatusCode.SIGNUP_INVITE_REQUIRED,
                     "Sign-up is by invitation only. Ask the owner for an invite to this email.");
         }
     }

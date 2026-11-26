@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.PasswordResetToken;
 import com.henheang.securityapi.domain.User;
@@ -85,7 +85,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 // Delete the token since email couldn't be sent
                 passwordResetTokenRepository.delete(passwordResetToken);
                 throw new AuthException(
-                        ExitCode.SYSTEM_ERROR,
+                        StatusCode.SYSTEM_ERROR,
                         "Failed to send password reset email. Please try again later.");
             }
 
@@ -97,7 +97,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             // Delete the token since email couldn't be sent
             passwordResetTokenRepository.delete(passwordResetToken);
             throw new AuthException(
-                    ExitCode.SYSTEM_ERROR,
+                    StatusCode.SYSTEM_ERROR,
                     "Failed to send password reset email. Please try again later.");
         }
     }
@@ -134,13 +134,14 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                         .orElseThrow(
                                 () -> {
                                     logger.warn("Invalid password reset token used: {}", token);
-                                    return new AuthException(ExitCode.PASSWORD_RESET_TOKEN_INVALID);
+                                    return new AuthException(
+                                            StatusCode.PASSWORD_RESET_TOKEN_INVALID);
                                 });
 
         if (passwordResetToken.isExpired()) {
             logger.info("Expired password reset token used: {}", token);
             passwordResetTokenRepository.delete(passwordResetToken);
-            throw new AuthException(ExitCode.PASSWORD_RESET_TOKEN_EXPIRED);
+            throw new AuthException(StatusCode.PASSWORD_RESET_TOKEN_EXPIRED);
         }
 
         User user = passwordResetToken.getUser();

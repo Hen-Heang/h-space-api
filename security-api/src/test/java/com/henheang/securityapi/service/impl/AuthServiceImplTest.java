@@ -10,7 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.User;
@@ -165,8 +165,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.EMAIL_ALREADY_EXISTS));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.EMAIL_ALREADY_EXISTS));
 
         verify(userService, never()).saveUser(any());
     }
@@ -232,8 +232,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.INVALID_CREDENTIALS));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.INVALID_CREDENTIALS));
 
         assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
         verify(userRepository, times(1)).save(user);
@@ -255,8 +255,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.ACCOUNT_LOCKED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.ACCOUNT_LOCKED));
 
         verify(auditLogService)
                 .log(
@@ -276,8 +276,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.ACCOUNT_DISABLED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.ACCOUNT_DISABLED));
 
         verify(loginHistoryService).recordFailure("user@example.com", "EMAIL_NOT_VERIFIED");
     }
@@ -340,8 +340,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.USERNAME_ALREADY_EXISTS));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.USERNAME_ALREADY_EXISTS));
 
         verify(userService, never()).saveUser(any());
     }
@@ -385,8 +385,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.EMAIL_LOGIN_CODE_INVALID));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.EMAIL_LOGIN_CODE_INVALID));
 
         verify(userService, never()).saveUser(any());
         verify(refreshTokenService, never()).createRefreshToken(any());
@@ -462,13 +462,13 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.ACCOUNT_LOCKED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.ACCOUNT_LOCKED));
         verify(refreshTokenService, never()).createRefreshToken(any());
     }
 
     private void refuseNewAccounts() {
-        AuthException refused = new AuthException(ExitCode.SIGNUP_INVITE_REQUIRED);
+        AuthException refused = new AuthException(StatusCode.SIGNUP_INVITE_REQUIRED);
         org.mockito.Mockito.doThrow(refused)
                 .when(accountAccessService)
                 .assertMayCreateAccount(any());
@@ -484,8 +484,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.SIGNUP_INVITE_REQUIRED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.SIGNUP_INVITE_REQUIRED));
         verify(userService, never()).saveUser(any());
     }
 
@@ -584,8 +584,8 @@ class AuthServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.ACCOUNT_LOCKED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.ACCOUNT_LOCKED));
         verify(refreshTokenService, never()).createRefreshToken(any());
     }
 
