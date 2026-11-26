@@ -15,18 +15,16 @@ default local creds `postgres`/`123`.
   schema but never creates/alters anything. A mismatch fails fast at startup,
   it doesn't silently patch itself, and `security-api`'s tests run against
   the real Flyway-applied schema.
-- `open-api`/`api-core` tests use `create-drop`. `open-api` scans
-  `security-api`'s entities and has its migrations on the classpath, so its
-  tests are isolated in the `open_api_test` schema of `jwt_auth_test` —
-  without that, its create-drop dropped `security-api`'s tables in `public`
-  and the next `security-api` test run failed on a fresh database.
+- `api-core` tests use `create-drop`.
 - Any entity change that affects the schema needs a new
   `V{n}__description.sql` file — see `.claude/commands/migration.md` for the
   step-by-step. Never edit an already-applied migration file; add a new one.
 - `hub-api` has its own migrations (`hub-api/src/main/resources/db/hub-migration/`,
   history table `flyway_hub_schema_history`) with their own version numbers;
-  it runs `security-api`'s migrations first locally/in tests, not in `prod`
-  (`HubFlywayConfig`). `finance-api` tests also use Flyway + `validate`.
+  finance has its own too (`hub-api/src/main/resources/db/finance-migration/`,
+  `flyway_finance_schema_history`). `HubFlywayConfig` runs security's, then
+  hub's, then finance's, in every profile including `prod` — hub-api is the
+  only deployed app. Tests run in schema `hub_api_test`.
 
 ## Secrets
 

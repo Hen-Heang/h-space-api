@@ -17,7 +17,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Production turns the API docs off (application-prod.yml). The prod profile can't boot in tests
+ * Production turns the API docs off (security-api-prod.yml). The prod profile can't boot in tests
  * (it has no datasource defaults), so this checks the two halves separately: the prod file disables
  * springdoc by default, and with springdoc disabled nothing under the docs paths is served.
  */
@@ -32,7 +32,7 @@ class OpenApiDocsDisabledIntegrationTest {
     void prodProfileDisablesDocsUnlessExplicitlyEnabled() throws Exception {
         MutablePropertySources sources = new MutablePropertySources();
         new YamlPropertySourceLoader()
-                .load("prod", new ClassPathResource("application-prod.yml"))
+                .load("prod", new ClassPathResource("security-api-prod.yml"))
                 .forEach(sources::addLast);
         // Deliberately no environment variables, so API_DOCS_ENABLED falls back.
         PropertySourcesPropertyResolver prod = new PropertySourcesPropertyResolver(sources);

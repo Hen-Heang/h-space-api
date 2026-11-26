@@ -20,12 +20,15 @@ service must stay isolated from H-Space's data (see "Never" below).
 | Networking | not exposed (no public domain yet) |
 
 The image is the same one CI builds and smoke-tests (`Dockerfile`,
-`docs/build-and-run.md`). It packages one module, `security-api` by
-default, and always listens on **8080** (`SERVER_PORT` is set in the
+`docs/build-and-run.md`). It packages one module, `hub-api` by
+default — the H-Space app: auth plus the hub and finance areas, which
+migrates all three schemas itself at start-up (until 2026-11-26 the default
+was `security-api`, auth only) — and always listens on **8080** (`SERVER_PORT` is set in the
 image). Railway's own `PORT` variable isn't used.
 
 - **Another module:** the `MODULE` build argument picks it (e.g.
-  `hub-api`). Railway passes service variables to Docker builds as build
+  `engineering-api`). If this service has a `MODULE` variable set to
+  `security-api`, remove it — that module isn't deployed any more. Railway passes service variables to Docker builds as build
   arguments, so a `MODULE` service variable should work — **verify on first
   use** in the build log (`:hub-api:bootJar`).
 - **No BuildKit cache mounts.** Railway rejects `RUN --mount=type=cache`
@@ -72,6 +75,7 @@ chat. Names match `deploy/prod.env.example`, minus the VPS-only ones
 | `MAIL_USERNAME`, `MAIL_PASSWORD` | for emails | SMTP app password; the defaults are placeholders, so email codes fail without them |
 | `DB_POOL_MIN_IDLE` | no | Leave unset (0). Never 1 on Neon |
 | `API_DOCS_ENABLED` | no | `true` turns on Swagger UI; turn it off again after use |
+| `VAULT_STEP_UP_REQUIRED` | no | `true` makes vault reset / keyset replacement require an MFA code (default `false`) |
 
 ## 4. Never
 

@@ -1,4 +1,5 @@
-// Runnable auth service, also consumed as a library by open-api (needs `jar` on too).
+// Auth module. Runnable on its own (bootRun, tests) but not deployed: hub-api
+// embeds it as a library and is the deployed app (needs `jar` on too).
 bootJar {
     enabled = true
 }

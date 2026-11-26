@@ -2,14 +2,14 @@
 #
 # Image for one runnable module, listening on port 8080. Build from the repo
 # root:
-#   docker build -t h-space/security-api .                          # default
-#   docker build --build-arg MODULE=hub-api -t h-space/hub-api .
+#   docker build -t h-space/hub-api .                               # default: the H-Space app
+#   docker build --build-arg MODULE=engineering-api -t h-space/engineering-api .
 # Runtime config comes only from environment variables (see .env.example);
 # no secrets are baked into the image.
 
 # ---- build: compile the Spring Boot jar ----
 FROM eclipse-temurin:17-jdk AS build
-ARG MODULE=security-api
+ARG MODULE=hub-api
 WORKDIR /workspace
 
 COPY . .

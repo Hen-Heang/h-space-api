@@ -1,4 +1,4 @@
-# Local stack: PostgreSQL + security-api.
+# Local stack: PostgreSQL + hub-api (the H-Space app: auth, hub and finance).
 #   docker compose up --build
 # Secrets (JWT_SECRET, MFA_ENCRYPTION_KEY, MAIL_*, GOOGLE_CLIENT_IDS,
 # SUPABASE_*, ...) come from the git-ignored .env - see .env.example.
@@ -24,7 +24,7 @@ services:
       timeout: 5s
       retries: 10
 
-  security-api:
+  hub-api:
     build: .
     env_file:
       - path: .env

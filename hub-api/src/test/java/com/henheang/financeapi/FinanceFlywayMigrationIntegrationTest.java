@@ -3,6 +3,7 @@ package com.henheang.financeapi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.henheang.hubapi.HubApiApplication;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.UserRepository;
@@ -17,12 +18,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * V1__finance_lookups.sql applied through FinanceFlywayConfig: its own history table, nothing in
+ * The finance migrations applied through HubFlywayConfig: their own history table, nothing in
  * security-api's, and the constraints Luyra only enforced in code. Not @Transactional - each
  * rejected insert must fail on its own; the users created here are deleted afterwards (cascading to
  * their finance rows).
  */
-@SpringBootTest
+@SpringBootTest(classes = HubApiApplication.class)
 class FinanceFlywayMigrationIntegrationTest {
 
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -73,7 +74,7 @@ class FinanceFlywayMigrationIntegrationTest {
         Integer inSecurityHistory =
                 jdbcTemplate.queryForObject(
                         // Match migration scripts only: Flyway's schema-creation
-                        // row stores the schema name (finance_api_test) here.
+                        // row stores the schema name (hub_api_test) here.
                         "SELECT count(*) FROM flyway_schema_history"
                                 + " WHERE script LIKE 'V%finance%.sql'",
                         Integer.class);

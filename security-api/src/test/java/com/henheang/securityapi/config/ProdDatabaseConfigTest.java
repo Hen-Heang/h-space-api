@@ -14,7 +14,7 @@ import org.springframework.core.io.ClassPathResource;
 /**
  * The prod profile's connection pool is sized for a small VPS and an external managed database, and
  * always asks for TLS. The prod profile can't boot in tests (no datasource defaults), so this reads
- * application-prod.yml directly - like OpenApiDocsDisabledIntegrationTest.
+ * security-api-prod.yml directly - like OpenApiDocsDisabledIntegrationTest.
  */
 class ProdDatabaseConfigTest {
 
@@ -65,7 +65,7 @@ class ProdDatabaseConfigTest {
         MutablePropertySources sources = new MutablePropertySources();
         sources.addFirst(new MapPropertySource("env", env));
         new YamlPropertySourceLoader()
-                .load("prod", new ClassPathResource("application-prod.yml"))
+                .load("prod", new ClassPathResource("security-api-prod.yml"))
                 .forEach(sources::addLast);
         return new PropertySourcesPropertyResolver(sources);
     }

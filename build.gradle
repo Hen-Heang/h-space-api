@@ -10,7 +10,7 @@ ext {
     mapstructVersion = '1.6.3'
     springdocVersion = '2.10.1'
     jjwtVersion = '0.11.5'
-    // Architecture tests (api-core test fixtures, used by hub-api and finance-api).
+    // Architecture tests (api-core test fixtures, used by hub-api).
     archunitVersion = '1.5.1'
 }
 
@@ -107,8 +107,8 @@ subprojects {
 // Configure api-core module (base module - no dependencies on other modules)
 project(':api-core') {
     // Test fixtures: test-only helpers that other modules reuse. Holds
-    // UserScopedRepositoryRules, the userId-scoping guard that hub-api's and
-    // finance-api's tests run against their repositories. In api-core so a
+    // UserScopedRepositoryRules, the userId-scoping guard that hub-api's
+    // tests run against its repositories (hub and finance areas). In api-core so a
     // module can use it without depending on security-api.
     apply plugin: 'java-test-fixtures'
 
@@ -179,9 +179,10 @@ project(':security-api') {
     }
 }
 
-// Configure finance-api module (personal finance; see docs/finance-api.md
-// before adding domain tables)
-project(':finance-api') {
+// Configure hub-api module: THE deployable H-Space app. It embeds security-api
+// (auth) and holds the product areas - inbox and H-Vault (com.henheang.hubapi)
+// and finance (com.henheang.financeapi). See docs/architecture.md.
+project(':hub-api') {
     dependencies {
         implementation project(':api-core')
         implementation project(':security-api')
@@ -195,35 +196,7 @@ project(':finance-api') {
         // OAuth2User, so that type must be on the compile classpath.
         implementation 'org.springframework.security:spring-security-oauth2-core'
 
-        // finance-api's own migrations (db/finance-migration) run with their
-        // own history table; see FinanceFlywayConfig and docs/finance/.
-        implementation 'org.flywaydb:flyway-core'
-        implementation 'org.flywaydb:flyway-database-postgresql'
-
-        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
-
-        // UserScopedRepositoryRules (see UserScopedRepositoryArchTest)
-        testImplementation testFixtures(project(':api-core'))
-    }
-}
-
-// Configure hub-api module (personal-hub data moving off Supabase, starting
-// with H-Vault; see docs/vault-design.md and docs/spring-migration-plan.md)
-project(':hub-api') {
-    dependencies {
-        implementation project(':api-core')
-        implementation project(':security-api')
-
-        // Same setup as finance-api: validates security-api's JWTs
-        implementation 'org.springframework.boot:spring-boot-starter-security'
-        implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-        implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
-        implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
-        // Controllers take security-api's UserPrincipal, which implements
-        // OAuth2User, so that type must be on the compile classpath.
-        implementation 'org.springframework.security:spring-security-oauth2-core'
-
-        // hub-api's own migrations (db/hub-migration) run with their own
+        // security-api's, hub's and finance's migrations, each with its own
         // history table; see HubFlywayConfig.
         implementation 'org.flywaydb:flyway-core'
         implementation 'org.flywaydb:flyway-database-postgresql'

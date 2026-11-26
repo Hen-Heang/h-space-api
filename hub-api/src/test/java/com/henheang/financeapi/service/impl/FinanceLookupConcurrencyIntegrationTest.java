@@ -10,6 +10,7 @@ import com.henheang.financeapi.repository.FinanceCategoryRepository;
 import com.henheang.financeapi.repository.FinancePaymentMethodRepository;
 import com.henheang.financeapi.service.FinanceCategoryService;
 import com.henheang.financeapi.service.FinancePaymentMethodService;
+import com.henheang.hubapi.HubApiApplication;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.BusinessException;
@@ -35,7 +36,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * request gets the same 409 CONFLICT. Luyra's check-then-insert could store both. Not
  * {@code @Transactional}: each call must commit in its own transaction.
  */
-@SpringBootTest
+@SpringBootTest(classes = HubApiApplication.class)
 class FinanceLookupConcurrencyIntegrationTest {
 
     private static final int ATTEMPTS = 8;

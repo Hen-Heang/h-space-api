@@ -6,7 +6,7 @@ current state of each module before assuming anything below is already done.
 ## Done (foundation)
 
 - [x] Multi-module Gradle build with a clean one-way dependency direction
-      (`api-core` → `security-api` → `open-api`), deduplicated per-module
+      (`api-core` → `security-api` → `hub-api`), deduplicated per-module
       `build.gradle` files.
 - [x] `local` / `dev` / `test` / `prod` Spring profiles per runnable module.
 - [x] Secrets externalized to environment variables; no committed real
@@ -39,4 +39,5 @@ reviewed — see `CLAUDE.md`)
 - OTP/OAuth2 removal and MFA/audit/rate-limiting completion — in progress on
   `main` per `docs/security-api-state.md`. Do not resurrect removed OTP/OAuth2
   classes.
-- Everything else in `security-api`'s and `open-api`'s feature backlog.
+- Everything else in `security-api`'s feature backlog. (The sample `open-api`
+  todo module was removed on 2026-11-26.)

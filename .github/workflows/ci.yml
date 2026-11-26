@@ -83,10 +83,9 @@ jobs:
       matrix:
         # mem: the limit deploy/compose.prod.yaml gives the module.
         include:
-          - module: security-api
-            mem: 768m
+          # The H-Space app: auth (security-api, embedded), hub and finance.
           - module: hub-api
-            mem: 640m
+            mem: 768m
           # Owner-only Engineering Hub (docs/engineering-api.md); deploys
           # to Railway, where 512m keeps it inside the Hobby plan.
           - module: engineering-api
@@ -176,11 +175,6 @@ jobs:
             -c ssl_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
           until docker exec smoke-db pg_isready -U postgres -d jwt_auth -q; do sleep 1; done
           extra=()
-          if [[ "$MODULE" == "hub-api" ]]; then
-            # In prod security-api migrates its own schema first. There's no
-            # security-api here, so let hub-api run those migrations too.
-            extra+=(-e HUB_FLYWAY_RUN_SECURITY_MIGRATIONS=true)
-          fi
           if [[ "$MODULE" == "engineering-api" ]]; then
             # Required at startup; never contacted here (keys load lazily on
             # the first authenticated request). Synthetic owner id.
@@ -212,13 +206,22 @@ jobs:
              WHERE a.application_name = 'PostgreSQL JDBC Driver'" \
             | tee /dev/stderr | grep -qx 't|[1-9][0-9]*'
           if [[ "$MODULE" == "hub-api" ]]; then
-            # The vault tables came from hub-api's own migration history, and
-            # the vault answers - but only to a signed-in caller.
-            docker exec smoke-db psql -U postgres -d jwt_auth -tAc \
-              "SELECT count(*) FROM flyway_hub_schema_history WHERE script = 'V1__vault.sql' AND success" \
-              | tee /dev/stderr | grep -qx 1
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/hub/vault/items)
-            echo "unauthenticated /api/hub/vault/items: $code"; [[ "$code" == "401" ]]
+            # All three migration sets ran, each in its own history table:
+            # security-api's (auth) first, then hub's, then finance's.
+            for check in \
+              "flyway_schema_history|V7__refresh_token_families.sql" \
+              "flyway_hub_schema_history|V1__vault.sql" \
+              "flyway_finance_schema_history|V1__finance_lookups.sql"; do
+              docker exec smoke-db psql -U postgres -d jwt_auth -tAc \
+                "SELECT count(*) FROM ${check%%|*} WHERE script = '${check#*|}' AND success" \
+                | tee /dev/stderr | grep -qx 1
+            done
+            # Auth is served here too, and every area answers only to a
+            # signed-in caller.
+            for path in /api/auth/user /api/hub/vault/items /api/finance/categories; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$path")
+              echo "unauthenticated $path: $code"; [[ "$code" == "401" ]]
+            done
           fi
           if [[ "$MODULE" == "engineering-api" ]]; then
             # Its own schema and history table, and owner-only answers.

@@ -1,65 +1,20 @@
+# hub-api: the deployed H-Space app - auth (security-api, embedded) plus the
+# product areas: inbox and H-Vault (/api/hub/**) and finance (/api/finance/**).
+#
+# Every auth and shared setting (datasource, JWT, MFA, mail, CORS, actuator,
+# logging, ...) comes from security-api.yml and security-api-{profile}.yml,
+# imported below, so it can't drift from security-api. Values there take
+# precedence over this file (order: see security-api.yml): keep only
+# hub-specific keys here.
 spring:
   application:
     name: hub-api
-
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
-
-  jpa:
-    show-sql: false
-
-  # A deadline for every @Transactional unit of work (JPA repositories are
-  # transactional by default; JdbcTemplate inside a transaction too): its
-  # queries are cancelled once it runs out, so one slow query can't hold a
-  # pool connection (5 in prod) indefinitely. Timeouts answer 503 "try
-  # again" (GlobalExceptionHandler). Flyway isn't affected.
-  transaction:
-    default-timeout: ${DB_TRANSACTION_TIMEOUT:30s}
-
-  mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${MAIL_USERNAME:your-email@gmail.com}
-    password: ${MAIL_PASSWORD:your-app-password}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          # Mail is sent inside the request; JavaMail's socket timeouts default
-          # to infinite, so a stalled SMTP server would hang it forever (ms).
-          connectiontimeout: ${MAIL_CONNECT_TIMEOUT_MS:10000}
-          timeout: ${MAIL_READ_TIMEOUT_MS:10000}
-          writetimeout: ${MAIL_WRITE_TIMEOUT_MS:10000}
-          starttls:
-            enable: true
-
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientAutoConfiguration
-
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: PT24H
-  refresh-token:
-    expiration: P7D
-
-app:
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  # CORS origins for security-api's WebSecurityConfig, comma-separated.
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
-  reset-password:
-    token-expiration-minutes: 1440
-  email:
-    from-name: H-Space API Team
+  config:
+    import: classpath:security-api.yml
 
 hub:
-  flyway:
-    # security-api owns its migrations (db/migration). Running them here too
-    # is convenient locally and in tests, where hub-api is the only app
-    # touching the database; prod turns it off so only security-api
-    # migrates its own schema. See HubFlywayConfig.
-    run-security-migrations: ${HUB_RUN_SECURITY_MIGRATIONS:true}
   vault:
     # Step-up (a fresh authenticator or backup code) for vault reset and
     # keyset replacement. A code that is sent is always verified; this makes
@@ -67,30 +22,5 @@ hub:
     # master-password change and reset break for the current client.
     step-up-required: ${VAULT_STEP_UP_REQUIRED:false}
 
-# Same as security-api: /actuator/health (plus /liveness and /readiness) is
-# the only exposed actuator endpoint, public and detail-free. The container
-# healthcheck uses /liveness, which doesn't query the database.
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health
-  endpoint:
-    health:
-      show-details: never
-      probes:
-        enabled: true
-  health:
-    mail:
-      enabled: false
-
 server:
   port: ${SERVER_PORT:8084}
-  # Same as security-api: resolve the client IP from X-Forwarded-For only when
-  # the request came from a trusted proxy (RateLimitingFilter keys on it).
-  forward-headers-strategy: native
-
-# Prints the request's X-Request-Id (RequestIdFilter in api-core) on every log line.
-logging:
-  pattern:
-    correlation: "[%X{requestId:-}] "

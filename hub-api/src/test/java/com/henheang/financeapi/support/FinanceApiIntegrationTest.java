@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.henheang.hubapi.HubApiApplication;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.UserRepository;
@@ -20,13 +21,12 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Base for finance HTTP tests against the real Flyway schema (test profile, schema
- * finance_api_test). Each test gets two fresh synthetic users, Alice and Bob, with verified emails
- * and JWTs from security-api's JwtTokenProvider; everything rolls back after the test. Ownership is
- * what replaces Luyra's missing RLS, so most tests check that Bob can never see or change Alice's
- * rows.
+ * Base for finance HTTP tests against the real Flyway schema (test profile, schema hub_api_test).
+ * Each test gets two fresh synthetic users, Alice and Bob, with verified emails and JWTs from
+ * security-api's JwtTokenProvider; everything rolls back after the test. Ownership is what replaces
+ * Luyra's missing RLS, so most tests check that Bob can never see or change Alice's rows.
  */
-@SpringBootTest
+@SpringBootTest(classes = HubApiApplication.class)
 @AutoConfigureMockMvc
 @Transactional
 public abstract class FinanceApiIntegrationTest {

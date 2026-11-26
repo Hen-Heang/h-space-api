@@ -13,29 +13,22 @@
   itself, it only checks it matches, so tests run against the real Flyway
   schema. A schema change means adding a new `V{n}__description.sql` file,
   not relying on Hibernate auto-sync.
-- `open-api` and `api-core` tests use `create-drop`. They share
-  `jwt_auth_test` with `security-api`, so `open-api`'s tests run in their own
-  schema (`open_api_test`, set in its `application-test.yml`) — otherwise its
-  create-drop would drop `security-api`'s tables in `public` and fail the next
-  `security-api` test run on a fresh database.
-- `finance-api` tests use Flyway + `validate` (like `security-api`), in their
-  own schema `finance_api_test`. Like `hub-api`, `finance-api` has its own
-  migrations (`finance-api/src/main/resources/db/finance-migration/`,
-  currently `V1__finance_lookups.sql`, `V2__finance_transactions.sql`;
-  V2 needs PostgreSQL 15+ for a column-list `ON DELETE SET NULL`) and
-  history table
-  `flyway_finance_schema_history` (`FinanceFlywayConfig`). Locally and in
-  tests it runs `security-api`'s migrations first
-  (`finance.flyway.run-security-migrations`, default true); in `prod` that
-  is off, so `security-api` must migrate first.
-- `hub-api` has its **own** migrations (`hub-api/src/main/resources/db/hub-migration/`,
-  currently `V1__vault.sql`, `V2__inbox_items.sql`) and history table `flyway_hub_schema_history`, so
-  its version numbers never collide with `security-api`'s. Its tables live in
-  the same database and may reference `users(id)`. Locally and in tests it
-  also runs `security-api`'s migrations first
-  (`hub.flyway.run-security-migrations`, default true); in `prod` that's off,
-  so `security-api` must have migrated before `hub-api` starts. Tests run in
-  schema `hub_api_test`. See `HubFlywayConfig`.
+- `api-core` tests use `create-drop`.
+- `hub-api` (the deployed app) holds two more migration sets besides
+  `security-api`'s, each with its **own** history table so their version
+  numbers never collide: hub's (`hub-api/src/main/resources/db/hub-migration/`,
+  currently `V1__vault.sql`, `V2__inbox_items.sql`; `flyway_hub_schema_history`)
+  and finance's (`hub-api/src/main/resources/db/finance-migration/`, currently
+  `V1__finance_lookups.sql`, `V2__finance_transactions.sql` — V2 needs
+  PostgreSQL 15+ for a column-list `ON DELETE SET NULL`;
+  `flyway_finance_schema_history`). Their tables live in the same database and
+  may reference `users(id)`. At start-up `HubFlywayConfig` runs all three in
+  order — security-api's, then hub's, then finance's — in every profile,
+  prod included: hub-api is the only app that deploys. Tests run in schema
+  `hub_api_test`. (Until 2026-11-26 finance was a separate `finance-api` app
+  testing in `finance_api_test`, and prod skipped security's migrations in the
+  product apps; there was also a sample `open-api` testing in `open_api_test`.
+  Both local schemas are unused now.)
 - `engineering-api` keeps everything in its **own schema** `engineering`
   (`ENGINEERING_DB_SCHEMA`), with its own migrations
   (`engineering-api/src/main/resources/db/engineering-migration/`, currently

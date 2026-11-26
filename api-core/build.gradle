@@ -1,4 +1,4 @@
-// Library module: shared by security-api/open-api and publishable for other
+// Library module: shared by security-api, hub-api and engineering-api, and publishable for other
 // APIs (`./gradlew :api-core:publishToMavenLocal`), never run standalone.
 apply plugin: 'maven-publish'
 

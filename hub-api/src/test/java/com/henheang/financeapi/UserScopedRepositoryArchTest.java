@@ -8,7 +8,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * Every finance-api row (transactions, categories, payment methods) belongs to one user, so every
+ * Every finance row (transactions, categories, payment methods) belongs to one user, so every
  * repository access must be scoped by the caller's userId - see {@link UserScopedRepositoryRules}.
  * There are no exemptions; adding one needs a comment saying why it can't reach another user's
  * rows.

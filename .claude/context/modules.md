@@ -39,10 +39,18 @@ security/(+crypto/, +oauth/) service/(+impl/) utils/ validation/`.
   (`src/main/resources/db/migration/`) — see `.claude/context/database.md`.
 - Depends on `api-core` only.
 
-## `open-api` — `com.henheang.openapi` (port 8082)
+## `hub-api` — the deployed app (port 8084 with bootRun, 8080 in its image)
 
-Packages: `config/ controller/ domain/ enums/ payload/ repository/ service/
-util/`.
+Embeds all of `security-api` (component scan) and holds the product areas,
+one package set per area:
 
-- Sample business API (to-do lists/items) secured by JWTs issued by
-  `security-api`. Depends on both `api-core` and `security-api`.
+- `com.henheang.hubapi` — Quick Capture Inbox (`/api/hub/inbox-items`) and
+  H-Vault (`/api/hub/vault`; `.claude/rules/vault.md`). Migrations
+  `db/hub-migration`, history `flyway_hub_schema_history`.
+- `com.henheang.financeapi` — finance (`/api/finance/**`; `docs/finance-api.md`),
+  a separate `finance-api` module until 2026-11-26. Migrations
+  `db/finance-migration`, history `flyway_finance_schema_history`.
+
+`HubFlywayConfig` migrates security, then hub, then finance at start-up. Its
+config imports `security-api.yml`; keep only hub-specific keys in
+`hub-api`'s own yml. The sample `open-api` module was removed 2026-11-26.
