@@ -179,24 +179,6 @@ project(':security-api') {
     }
 }
 
-// Configure open-api module
-project(':open-api') {
-    dependencies {
-        // Depend on both api-core and security-api
-        implementation project(':api-core')
-        implementation project(':security-api')
-
-        // Security + JWT (open-api validates tokens issued by security-api)
-        implementation 'org.springframework.boot:spring-boot-starter-security'
-        implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-        implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
-        implementation "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
-
-        // Documentation
-        implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
-    }
-}
-
 // Configure finance-api module (personal finance; see docs/finance-api.md
 // before adding domain tables)
 project(':finance-api') {
@@ -204,7 +186,7 @@ project(':finance-api') {
         implementation project(':api-core')
         implementation project(':security-api')
 
-        // Same setup as open-api: validates security-api's JWTs
+        // Validates security-api's JWTs
         implementation 'org.springframework.boot:spring-boot-starter-security'
         implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
         implementation "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
