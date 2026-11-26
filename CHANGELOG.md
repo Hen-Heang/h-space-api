@@ -74,6 +74,19 @@ project has no released versions yet, so everything lives under
   bumps are grouped, and Java (Temurin) and Postgres major bumps are skipped.
 
 ### Changed
+- **One deployed H-Space app.** `hub-api` now serves auth (it already embedded
+  all of `security-api`) plus every product area: `finance-api` moved into it
+  (package `com.henheang.financeapi` and its migration history unchanged) and
+  the sample `open-api` module was removed. Two apps deploy instead of up to
+  four: `hub-api` and `engineering-api`. `HubFlywayConfig` migrates security,
+  then hub, then finance at start-up in every profile, so there's no longer a
+  deploy order between modules. The Docker image and Railway default to
+  `hub-api`; CI no longer builds a `security-api` image.
+- Auth settings live once in `security-api.yml` / `security-api-{profile}.yml`
+  (formerly `application*.yml`), imported by both apps. `hub-api` and
+  `finance-api` used to carry partial copies that had drifted: `hub-api` was
+  missing ~30 auth keys and ran them on code defaults (no Google client ids,
+  no owner email, ...).
 - Deployment moved from the VPS to Railway (2026-11-25): new runbook
   `docs/deploy-railway.md`; `docs/deploy-vps.md` and `deploy/` are marked
   retired and kept for reference; `AGENTS.md` and `docs/build-and-run.md`

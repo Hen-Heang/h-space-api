@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.SignupInvite;
 import com.henheang.securityapi.domain.User;
@@ -15,6 +15,7 @@ import com.henheang.securityapi.service.EmailLoginCodeService;
 import com.henheang.securityapi.service.EmailService;
 import com.henheang.securityapi.service.RoleService;
 import com.henheang.securityapi.service.UserRoleService;
+import com.henheang.securityapi.utils.LogMasking;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -92,7 +93,7 @@ public class AccountAccessServiceImpl implements AccountAccessService {
     public void assertMayCreateAccount(String email) {
         if (!mayCreateAccount(email)) {
             throw new AuthException(
-                    ExitCode.SIGNUP_INVITE_REQUIRED,
+                    StatusCode.SIGNUP_INVITE_REQUIRED,
                     "Sign-up is by invitation only. Ask the owner for an invite to this email.");
         }
     }
@@ -157,7 +158,7 @@ public class AccountAccessServiceImpl implements AccountAccessService {
                 frontendUrl + "/register?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8);
         boolean emailSent = emailService.sendInviteEmail(email, signupUrl);
         if (!emailSent) {
-            logger.warn("Invite saved but its email to {} failed to send", email);
+            logger.warn("Invite saved but its email to {} failed to send", LogMasking.email(email));
         }
         auditLogService.log(AuditEventType.SIGNUP_INVITE_SENT, invitedBy, email);
         return new InviteResult(invite, emailSent);
@@ -180,6 +181,6 @@ public class AccountAccessServiceImpl implements AccountAccessService {
             throw new BadRequestException("That invite was already used.");
         }
         signupInviteRepository.delete(invite);
-        logger.info("Revoked invite for {}", invite.getEmail());
+        logger.info("Revoked invite for {}", LogMasking.email(invite.getEmail()));
     }
 }

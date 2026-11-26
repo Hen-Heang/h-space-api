@@ -4,6 +4,7 @@ import com.henheang.securityapi.domain.LoginHistory;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.LoginHistoryRepository;
 import com.henheang.securityapi.service.LoginHistoryService;
+import com.henheang.securityapi.utils.LogMasking;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +35,11 @@ public class LoginHistoryServiceImpl implements LoginHistoryService {
             entry.setUserAgent(RequestMetadataSupport.currentUserAgent());
             loginHistoryRepository.save(entry);
         } catch (Exception e) {
-            logger.error("Failed to write login history for {}: {}", identifier, e.getMessage(), e);
+            logger.error(
+                    "Failed to write login history for {}: {}",
+                    LogMasking.identifier(identifier),
+                    e.getMessage(),
+                    e);
         }
     }
 }

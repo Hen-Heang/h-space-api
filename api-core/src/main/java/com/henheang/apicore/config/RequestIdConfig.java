@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 
 /**
- * Registers {@link RequestIdFilter} for every API. hub-api, finance-api and open-api pick this up
- * by scanning {@code com.henheang.apicore}; security-api doesn't scan it and imports it explicitly.
+ * Registers {@link RequestIdFilter} for every API. hub-api picks this up by scanning {@code
+ * com.henheang.apicore}; security-api and engineering-api don't scan it and import it explicitly.
  */
 @Configuration(proxyBeanMethods = false)
 public class RequestIdConfig {

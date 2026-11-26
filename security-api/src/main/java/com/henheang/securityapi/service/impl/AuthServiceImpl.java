@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.RefreshToken;
@@ -27,6 +27,7 @@ import com.henheang.securityapi.service.RoleService;
 import com.henheang.securityapi.service.TokenBlacklistService;
 import com.henheang.securityapi.service.UserRoleService;
 import com.henheang.securityapi.service.UserService;
+import com.henheang.securityapi.utils.LogMasking;
 import com.henheang.securityapi.validation.UsernameRules;
 import jakarta.transaction.Transactional;
 import java.time.Duration;
@@ -81,11 +82,11 @@ public class AuthServiceImpl implements AuthService {
     public Object signup(SignUpRequest signUpRequest) {
         // Check if email already exists
         if (userService.existsByEmail(signUpRequest.getEmail())) {
-            throw new AuthException(ExitCode.EMAIL_ALREADY_EXISTS);
+            throw new AuthException(StatusCode.EMAIL_ALREADY_EXISTS);
         }
         String username = UsernameRules.normalize(signUpRequest.getUsername());
         if (userRepository.existsByUsername(username)) {
-            throw new AuthException(ExitCode.USERNAME_ALREADY_EXISTS);
+            throw new AuthException(StatusCode.USERNAME_ALREADY_EXISTS);
         }
         accountAccessService.assertMayCreateAccount(signUpRequest.getEmail());
 
@@ -118,9 +119,12 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (Exception e) {
             logger.error(
-                    "Registration failed for {}: {}", signUpRequest.getEmail(), e.getMessage(), e);
+                    "Registration failed for {}: {}",
+                    LogMasking.email(signUpRequest.getEmail()),
+                    e.getMessage(),
+                    e);
             throw new AuthException(
-                    ExitCode.REGISTRATION_FAILED, "Registration failed. Please try again.");
+                    StatusCode.REGISTRATION_FAILED, "Registration failed. Please try again.");
         }
     }
 
@@ -139,7 +143,7 @@ public class AuthServiceImpl implements AuthService {
             // Find the user
             User user =
                     findByLoginIdentifier(identifier)
-                            .orElseThrow(() -> new AuthException(ExitCode.INVALID_CREDENTIALS));
+                            .orElseThrow(() -> new AuthException(StatusCode.INVALID_CREDENTIALS));
 
             // Password verified, but MFA is enabled: don't hand out real tokens
             // yet. Issue a short-lived challenge token that only /mfa/verify
@@ -158,25 +162,27 @@ public class AuthServiceImpl implements AuthService {
             loginHistoryService.recordSuccess(user, user.getEmail());
             return issueTokens(user);
         } catch (LockedException e) {
-            logger.warn("Login rejected for {}: account locked", identifier);
+            logger.warn("Login rejected for {}: account locked", LogMasking.identifier(identifier));
             auditLogService.log(AuditEventType.ACCOUNT_LOCKED, null, identifier);
             loginHistoryService.recordFailure(identifier, "ACCOUNT_LOCKED");
             throw new AuthException(
-                    ExitCode.ACCOUNT_LOCKED,
+                    StatusCode.ACCOUNT_LOCKED,
                     "Account is temporarily locked due to too many failed login attempts. Try again later.");
         } catch (DisabledException e) {
-            logger.warn("Login rejected for {}: email not verified", identifier);
+            logger.warn(
+                    "Login rejected for {}: email not verified", LogMasking.identifier(identifier));
             loginHistoryService.recordFailure(identifier, "EMAIL_NOT_VERIFIED");
             throw new AuthException(
-                    ExitCode.ACCOUNT_DISABLED,
+                    StatusCode.ACCOUNT_DISABLED,
                     "Please verify your email address before logging in.");
         } catch (AuthenticationException e) {
-            logger.warn("Login failed for {}: {}", identifier, e.getMessage());
+            logger.warn(
+                    "Login failed for {}: {}", LogMasking.identifier(identifier), e.getMessage());
             findByLoginIdentifier(identifier).ifPresent(this::registerFailedLoginAttempt);
             auditLogService.log(AuditEventType.LOGIN_FAILURE, null, identifier);
             loginHistoryService.recordFailure(identifier, "INVALID_CREDENTIALS");
             throw new AuthException(
-                    ExitCode.INVALID_CREDENTIALS, "Invalid email, username or password");
+                    StatusCode.INVALID_CREDENTIALS, "Invalid email, username or password");
         }
     }
 
@@ -204,7 +210,9 @@ public class AuthServiceImpl implements AuthService {
                                 EmailLoginCodeService.normalizeEmail(email))
                         .isPresent();
         if (!hasAccount && !accountAccessService.mayCreateAccount(email)) {
-            logger.info("No sign-in code sent to {}: no account and no invite", email);
+            logger.info(
+                    "No sign-in code sent to {}: no account and no invite",
+                    LogMasking.email(email));
             return;
         }
         emailLoginCodeService.sendCode(email);
@@ -217,7 +225,7 @@ public class AuthServiceImpl implements AuthService {
         if (!emailLoginCodeService.consumeCode(email, code)) {
             auditLogService.log(AuditEventType.LOGIN_FAILURE, null, email, "via email code");
             loginHistoryService.recordFailure(email, "EMAIL_CODE_INVALID");
-            throw new AuthException(ExitCode.EMAIL_LOGIN_CODE_INVALID);
+            throw new AuthException(StatusCode.EMAIL_LOGIN_CODE_INVALID);
         }
 
         // The code proves the caller controls this mailbox, which is all an
@@ -239,7 +247,7 @@ public class AuthServiceImpl implements AuthService {
             if (!user.isAccountNonLocked()) {
                 loginHistoryService.recordFailure(email, "ACCOUNT_LOCKED");
                 throw new AuthException(
-                        ExitCode.ACCOUNT_LOCKED,
+                        StatusCode.ACCOUNT_LOCKED,
                         "Account is temporarily locked due to too many failed login attempts. Try again later.");
             }
             if (!Boolean.TRUE.equals(user.getEmailVerified())) {
@@ -278,25 +286,25 @@ public class AuthServiceImpl implements AuthService {
                 || !"mfa_challenge".equals(jwtTokenProvider.getTokenTypeFromToken(mfaToken))
                 || tokenBlacklistService.isRevoked(jwtTokenProvider.getJtiFromToken(mfaToken))) {
             throw new AuthException(
-                    ExitCode.TOKEN_INVALID, "Invalid or expired MFA challenge token");
+                    StatusCode.TOKEN_INVALID, "Invalid or expired MFA challenge token");
         }
 
         UUID userId = jwtTokenProvider.getUserIdFromToken(mfaToken);
         User user =
                 userRepository
                         .findById(userId)
-                        .orElseThrow(() -> new AuthException(ExitCode.INVALID_CREDENTIALS));
+                        .orElseThrow(() -> new AuthException(StatusCode.INVALID_CREDENTIALS));
 
         if (!user.isMfaEnabled()) {
             auditLogService.log(AuditEventType.MFA_CHALLENGE_FAILED, user.getId(), user.getEmail());
-            throw new AuthException(ExitCode.MFA_CODE_INVALID);
+            throw new AuthException(StatusCode.MFA_CODE_INVALID);
         }
 
         // Wrong codes count toward the same lock as wrong passwords.
         if (!user.isAccountNonLocked()) {
             loginHistoryService.recordFailure(user.getEmail(), "ACCOUNT_LOCKED");
             throw new AuthException(
-                    ExitCode.ACCOUNT_LOCKED,
+                    StatusCode.ACCOUNT_LOCKED,
                     "Account is temporarily locked due to too many failed login attempts. Try again later.");
         }
 
@@ -323,7 +331,7 @@ public class AuthServiceImpl implements AuthService {
 
         registerFailedLoginAttempt(user);
         auditLogService.log(AuditEventType.MFA_CHALLENGE_FAILED, user.getId(), user.getEmail());
-        throw new AuthException(ExitCode.MFA_CODE_INVALID);
+        throw new AuthException(StatusCode.MFA_CODE_INVALID);
     }
 
     // A challenge signs in once: it's revoked before the tokens are issued.
@@ -359,12 +367,12 @@ public class AuthServiceImpl implements AuthService {
             // Don't let a Google sign-in silently take over an account that was
             // created (and is protected) by a local password.
             throw new AuthException(
-                    ExitCode.OAUTH_ERROR,
+                    StatusCode.OAUTH_ERROR,
                     "This email is already registered with a different sign-in method");
         } else if (!user.isAccountNonLocked()) {
             loginHistoryService.recordFailure(user.getEmail(), "ACCOUNT_LOCKED");
             throw new AuthException(
-                    ExitCode.ACCOUNT_LOCKED,
+                    StatusCode.ACCOUNT_LOCKED,
                     "Account is temporarily locked due to too many failed login attempts. Try again later.");
         }
 

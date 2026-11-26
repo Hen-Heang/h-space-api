@@ -7,6 +7,9 @@ public enum AuditEventType {
     ACCOUNT_LOCKED,
     LOGOUT,
     TOKEN_REVOKED,
+    // A refresh token spent by rotation was presented again; its family was
+    // revoked. Details carry the family id and count only.
+    REFRESH_TOKEN_REUSE_DETECTED,
     PASSWORD_RESET_REQUESTED,
     PASSWORD_RESET_COMPLETED,
     MFA_SETUP_INITIATED,

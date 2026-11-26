@@ -26,21 +26,19 @@ direction only (no cycles):
 api-core   (base library — shared utilities, no app of its own)
     ▲
     │
-security-api (authentication service — JWT, Google login, MFA, audit)  ── runnable
+security-api (authentication — JWT, Google login, MFA, audit)  ── library + bootRun
     ▲
     │
-open-api / finance-api / hub-api   (siblings, each protected by security-api) ── runnable
+hub-api      (THE H-Space app: embeds security-api; hub + finance areas)  ── deployed
 
-api-core ◀── engineering-api   (owner-only Engineering Hub; verifies Supabase tokens itself) ── runnable
+api-core ◀── engineering-api   (owner-only Engineering Hub; verifies Supabase tokens itself) ── deployed
 ```
 
 | Module         | Port  | bootJar | Purpose |
 |----------------|-------|---------|---------|
 | `api-core`   | —     | ❌ off  | Shared library: API response envelopes (`ApiResponse`, `ApiStatus`, `StatusCode`), pagination, enum converters, interceptors. Built as a plain `jar` and consumed by the other modules — not run directly. |
-| `security-api` | 8080  | ✅ on   | Core authentication service: signup/login, JWT issue/refresh/revocation, Google ID-token login, MFA (TOTP + backup codes), email verification, password reset, account lockout/unlock, RBAC (roles/permissions), user management, audit logging, rate limiting, Swagger UI. |
-| `open-api`      | 8082  | ✅ on   | Example business API (to-do lists/items) that depends on `security-api` for authentication. |
-| `finance-api`   | 8083  | ✅ on   | Personal finance API (scaffold, no endpoints yet — see `docs/finance-api.md`), secured by `security-api`'s JWT. |
-| `hub-api`       | 8084  | ✅ on   | Personal-hub data moving off Supabase (`/api/hub/**`): H-Vault (`/api/hub/vault`, browser-encrypted ciphertext only, MFA required — `docs/vault-design.md`) and the Quick Capture Inbox (`/api/hub/inbox-items`). Own Flyway history (`flyway_hub_schema_history`). Deployed next to `security-api` (`docs/deploy-vps.md` §15). |
+| `security-api` | 8080  | ✅ on   | Authentication module, embedded in `hub-api` and not deployed on its own (`bootRun` and its tests still work): signup/login, JWT issue/refresh/revocation, Google ID-token login, MFA (TOTP + backup codes), email verification, password reset, account lockout/unlock, RBAC (roles/permissions), user management, audit logging, rate limiting, Swagger UI. |
+| `hub-api`       | 8084 (8080 in its image) | ✅ on   | **The deployed H-Space app.** Serves auth (all of `security-api`) and the product areas: finance (`/api/finance/**`, `com.henheang.financeapi` — `docs/finance-api.md`, own history `flyway_finance_schema_history`), H-Vault (`/api/hub/vault`, browser-encrypted ciphertext only, MFA required — `docs/vault-design.md`) and the Quick Capture Inbox (`/api/hub/inbox-items`). Own Flyway history (`flyway_hub_schema_history`). Runs security's, hub's and finance's migrations at start-up. Deployed on Railway (`docs/deploy-railway.md`). Until 2026-11-26 `finance-api` and a sample `open-api` were separate runnable modules. |
 | `engineering-api` | 8085 | ✅ on | Owner-only Engineering Hub (`/api/engineering/**`): verifies Supabase access tokens against the project's JWKS, owner allowlist + `aal2`. Depends on `api-core` only; own schema `engineering`. Plan and status: `docs/engineering-api.md`. |
 
 Dependency wiring lives in the **root `build.gradle`** (`subprojects { ... }`
@@ -69,16 +67,19 @@ createdb -U postgres jwt_auth
 
 ### Configuration profiles
 
-Each runnable module (`api-core`'s context, `security-api`, `open-api`) loads
-`application.yml` plus a profile file selected by `SPRING_PROFILES_ACTIVE`
-(Spring's standard `application-{profile}.yml` convention):
+`security-api` and `hub-api` share one copy of every auth setting:
+`security-api/src/main/resources/security-api.yml` plus
+`security-api-{profile}.yml`, imported by each app's small `application.yml`
+(`spring.config.import`). The profile is selected by `SPRING_PROFILES_ACTIVE`
+(the table below names the shared files; precedence is in
+`docs/architecture.md`):
 
 | Profile | File | Used by | Secrets |
 |---------|------|---------|---------|
 | `local` (default) | `application-local.yml` | `./gradlew bootRun` with no env vars | Has fallback defaults (DB password `123`, placeholder JWT secret) for zero-config local dev. **Git-ignored** — copy `.env.example` and fill in your own values instead of relying on the placeholder. |
-| `dev` | `application-dev.yml` | Shared dev/staging | Has a hardcoded fallback JWT secret / MFA encryption key for convenience; still expects real `DB_PASSWORD`. |
-| `test` | `application-test.yml` | `./gradlew test` / CI (forced via the root `build.gradle` `Test` task config) | Separate `jwt_auth_test` DB, a fixed non-sensitive JWT secret default (safe — test-only). |
-| `prod` | `application-prod.yml` | Production | No fallback defaults anywhere — fails fast at startup if `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` / `MFA_ENCRYPTION_KEY` aren't set. |
+| `dev` | `security-api-dev.yml` | Shared dev/staging | Has a hardcoded fallback JWT secret / MFA encryption key for convenience; still expects real `DB_PASSWORD`. |
+| `test` | `security-api-test.yml` (+ hub-api's `application-test.yml`: schema `hub_api_test`) | `./gradlew test` / CI (forced via the root `build.gradle` `Test` task config) | Separate `jwt_auth_test` DB, a fixed non-sensitive JWT secret default (safe — test-only). |
+| `prod` | `security-api-prod.yml` | Production | No fallback defaults anywhere — fails fast at startup if `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` / `JWT_SECRET` / `MFA_ENCRYPTION_KEY` aren't set. |
 
 `spring.jpa.hibernate.ddl-auto` is `validate` in **every** profile — Flyway
 (`spring.flyway.enabled: true`) is the sole schema authority; Hibernate only
@@ -112,7 +113,7 @@ From the `h-space-api/` directory:
 
 # Build a single module
 ./gradlew :security-api:build
-./gradlew :open-api:build
+./gradlew :hub-api:build
 
 # Skip tests
 ./gradlew build -x test
@@ -136,15 +137,15 @@ See `docs/coding-standards.md` before tightening any of these to fail the build.
 Each runnable module is started with the Spring Boot plugin:
 
 ```bash
-# Start the auth service (port 8080)
-./gradlew :security-api:bootRun
+# Start the H-Space app: auth + hub + finance (port 8084)
+./gradlew :hub-api:bootRun
 
-# Start the todo API (port 8082) — needs security-api's JWT to authenticate
-./gradlew :open-api:bootRun
+# Or auth alone (port 8080), handy while working on security-api
+./gradlew :security-api:bootRun
 ```
 
 `api-core` is a library (`bootJar` disabled) and is **not** run directly — it
-is pulled in as a dependency by the other two.
+is pulled in as a dependency by the other modules.
 
 ### Using `api-core` in another API
 
@@ -172,7 +173,7 @@ Once `security-api` is up, open the API docs:
 
 ---
 
-## API Overview (`security-api`, port 8080)
+## API Overview (auth — served by `hub-api`)
 
 ### Authentication — `/api/auth`
 | Method | Path                          | Description |
@@ -270,11 +271,6 @@ brute-forceable endpoints (`login`, `signup`, `forgot-password`, all
 `/api/auth/mfa/*`), and access/refresh tokens can be revoked via
 `TokenBlacklistService` (backed by `RevokedToken`).
 
-### Todo API (`open-api`, port 8082)
-| Method | Path                   | Description |
-|--------|------------------------|-------------|
-| POST   | `/api/todo/v1/create`  | Create a todo list for the authenticated user |
-
 ---
 
 ## Project Layout
@@ -282,7 +278,7 @@ brute-forceable endpoints (`login`, `signup`, `forgot-password`, all
 ```
 h-space-api/
 ├── build.gradle           # Root: plugins, shared deps, per-module wiring, quality tooling
-├── settings.gradle        # Declares the 3 modules
+├── settings.gradle        # Declares the 4 modules
 ├── gradlew / gradlew.bat  # Gradle wrapper
 ├── config/checkstyle/, config/pmd/  # Checkstyle & PMD rule files (see build.gradle)
 ├── .github/workflows/ci.yml         # CI: build + test + lint reports on push/PR
@@ -293,7 +289,7 @@ h-space-api/
 │   └── src/main/java/com/henheang/apicore/
 │       └── components/     # ApiResponse, Pagination, enum converters, interceptor
 │
-├── security-api/          # Auth service (port 8080)
+├── security-api/          # Auth module, embedded in hub-api (bootRun: port 8080)
 │   └── src/main/java/com/henheang/securityapi/
 │       ├── config/         # WebSecurityConfig, CorsConfig, JwtConfig, OpenApiConfig,
 │       │                   #   DataInitializer, ScheduledTasks, CacheConfig (permission
@@ -323,11 +319,13 @@ h-space-api/
 │       └── db/migration/   # Flyway: V1__baseline, V2__account_security_tokens,
 │                           #   V3__mfa_recovery_codes
 │
-└── open-api/               # Sample business API (port 8082)
-    └── src/main/java/com/test/open-api/
-        ├── controller/  service/  repository/
-        ├── domain/       # TodoList, TodoItem, Tag, ListShare, TodoComment, ...
-        ├── payload/  enums/  util/
+├── hub-api/               # THE deployed app (bootRun: port 8084; image: 8080)
+│   └── src/main/java/com/henheang/
+│       ├── hubapi/          # HubApiApplication, HubFlywayConfig; inbox + H-Vault
+│       └── financeapi/      # finance area (formerly the finance-api module)
+│   └── src/main/resources/db/hub-migration/, db/finance-migration/
+│
+└── engineering-api/       # Owner-only Engineering Hub (port 8085; docs/engineering-api.md)
 ```
 
 ---
@@ -336,12 +334,13 @@ h-space-api/
 
 1. **Start dependencies** — make sure PostgreSQL is running and `jwt_auth` exists.
 2. **Make changes** — shared code goes in `api-core`; auth logic in `security-api`;
-   business features in `open-api`. Keep the dependency direction
-   (`open-api → security-api → api-core`) intact to avoid build cycles.
+   product features in `hub-api`, one package set per area. Keep the
+   dependency direction (`hub-api → security-api → api-core`) intact to avoid
+   build cycles.
 3. **Run tests** — `./gradlew test` (or per module, e.g. `./gradlew :security-api:test`).
    Tests use JUnit 5 (`useJUnitPlatform()`).
-4. **Run locally** — `./gradlew :security-api:bootRun`, then exercise endpoints via
-   Swagger UI or an HTTP client. Start `open-api` too if you need the business API.
+4. **Run locally** — `./gradlew :hub-api:bootRun`, then exercise endpoints via
+   Swagger UI or an HTTP client.
 5. **Verify the build** — `./gradlew build` before committing.
 
 ### Conventions
@@ -356,14 +355,14 @@ h-space-api/
 
 ## Configuration Reference
 
-Per-module config lives in `src/main/resources/application.yml` (profile-agnostic
-base) plus `application-{local,dev,test,prod}.yml` (see
-[Configuration profiles](#configuration-profiles) above). Key settings (shared
-shape across modules):
+Shared config lives in `security-api/src/main/resources/security-api.yml`
+(profile-agnostic base) plus `security-api-{dev,test,prod}.yml`, imported by
+each app (see [Configuration profiles](#configuration-profiles) above). Key
+settings:
 
 | Key | Source | Notes |
 |-----|--------|-------|
-| `server.port` | `${SERVER_PORT}` | Defaults: 8081 (`api-core`, not run directly), 8080 (`security-api`), 8082 (`open-api`), 8083 (`finance-api`) |
+| `server.port` | `${SERVER_PORT}` | Defaults: 8084 (`hub-api`), 8080 (`security-api` bootRun), 8085 (`engineering-api`); every image listens on 8080 |
 | `spring.datasource.url` | `${DB_URL}` | Defaults to `jdbc:postgresql://localhost:5432/jwt_auth` (`jwt_auth_test` under the `test` profile) |
 | `spring.flyway.enabled` | `true` | Flyway is the sole schema authority — see `db/migration/` |
 | `spring.jpa.hibernate.ddl-auto` | `validate` (all profiles) | Hibernate only verifies the schema at startup; it never creates/alters it |

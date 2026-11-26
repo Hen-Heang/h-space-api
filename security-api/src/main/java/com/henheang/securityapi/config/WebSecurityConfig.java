@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -179,6 +180,12 @@ public class WebSecurityConfig {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
+        // By default the locked/disabled checks run before the password is
+        // checked, so "account locked" or "verify your email" told anyone that
+        // an account exists without knowing its password. Check the password
+        // first: a wrong one always gets the generic invalid-credentials error.
+        authProvider.setPreAuthenticationChecks(user -> {});
+        authProvider.setPostAuthenticationChecks(new AccountStatusUserDetailsChecker());
         return authProvider;
     }
 

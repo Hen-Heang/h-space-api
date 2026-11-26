@@ -1,6 +1,6 @@
 package com.henheang.securityapi.security;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.exception.AuthException;
 import io.jsonwebtoken.Claims;
@@ -36,7 +36,7 @@ public class JwtTokenProvider {
             return generateToken(userPrincipal.getId(), null);
         } catch (Exception e) {
             throw new AuthException(
-                    ExitCode.JWT_CONFIGURATION_ERROR,
+                    StatusCode.JWT_CONFIGURATION_ERROR,
                     "Failed to generate JWT token: " + e.getMessage());
         }
     }
@@ -46,7 +46,7 @@ public class JwtTokenProvider {
             return generateToken(user.getId(), null);
         } catch (Exception e) {
             throw new AuthException(
-                    ExitCode.JWT_CONFIGURATION_ERROR,
+                    StatusCode.JWT_CONFIGURATION_ERROR,
                     "Failed to generate JWT token: " + e.getMessage());
         }
     }
@@ -75,7 +75,7 @@ public class JwtTokenProvider {
                     .compact();
         } catch (Exception e) {
             throw new AuthException(
-                    ExitCode.JWT_CONFIGURATION_ERROR,
+                    StatusCode.JWT_CONFIGURATION_ERROR,
                     "Failed to generate JWT token: " + e.getMessage());
         }
     }
@@ -105,7 +105,7 @@ public class JwtTokenProvider {
                     .getBody();
         } catch (Exception e) {
             throw new AuthException(
-                    ExitCode.TOKEN_INVALID, "Failed to parse JWT claims: " + e.getMessage());
+                    StatusCode.TOKEN_INVALID, "Failed to parse JWT claims: " + e.getMessage());
         }
     }
 

@@ -1,9 +1,14 @@
-# finance-api
+# Finance (in hub-api)
 
-Personal finance module for H-Space. It is where the Luyra finance
-backend is moving. It runs on port 8083 and is secured by
-`security-api`'s JWTs, the same way as `hub-api`. Swagger group:
-`finance` (`/api/finance/**`).
+Personal finance area of H-Space. It is where the Luyra finance
+backend is moving. Since 2026-11-26 it lives inside `hub-api`, the one
+deployed app (package `com.henheang.financeapi`, migrations
+`hub-api/src/main/resources/db/finance-migration/`, history table
+`flyway_finance_schema_history`); before that it was a separate
+`finance-api` module on port 8083. It is secured by `security-api`'s JWTs
+like the hub area. Swagger group: `finance` (`/api/finance/**`). The
+planning docs in `docs/finance/` still say `finance-api` — read that as
+this area of `hub-api`.
 
 ## Current state
 
@@ -24,9 +29,8 @@ yet.** They cover API-CONTRACT #1–8 and #10–15:
 How it works:
 
 - **Migrations.** Its own Flyway history: `db/finance-migration`, table
-  `flyway_finance_schema_history`, set up in `FinanceFlywayConfig`. In
-  prod, `finance.flyway.run-security-migrations` is false, so
-  `security-api` must migrate first. Migrations so far:
+  `flyway_finance_schema_history`. `HubFlywayConfig` runs it last, after
+  security-api's and hub's, in every profile. Migrations so far:
   `V1__finance_lookups.sql` and `V2__finance_transactions.sql`. V2 needs
   **PostgreSQL 15+** for `ON DELETE SET NULL (recurring_id)`.
 - **Ownership.** Every repository finder takes the caller's user id from

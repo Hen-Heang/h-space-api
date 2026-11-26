@@ -10,6 +10,64 @@ public enum StatusCode {
     // Success 200
     SUCCESS(200, "Success", 200),
 
+    // ---- Auth codes (formerly the separate ExitCode enum). These numeric
+    // codes reach the web client in status.code: keep them unchanged.
+
+    // Authentication (1000-1099) -> 401
+    AUTHENTICATION_FAILED(1000, "Authentication failed", 401),
+    INVALID_CREDENTIALS(1001, "Invalid username or password", 401),
+    ACCOUNT_LOCKED(1002, "Account has been locked", 401),
+    ACCOUNT_DISABLED(1003, "Account is disabled", 401),
+    TOKEN_EXPIRED(1004, "Authentication token has expired", 401),
+    TOKEN_INVALID(1005, "Invalid authentication token", 401),
+    INSUFFICIENT_PERMISSIONS(1006, "Insufficient permissions for this operation", 401),
+    MFA_REQUIRED(1007, "Multi-factor authentication code required", 401),
+    MFA_CODE_INVALID(1008, "Invalid multi-factor authentication code", 401),
+    MFA_ALREADY_ENABLED(1009, "Multi-factor authentication is already enabled", 401),
+    MFA_NOT_ENABLED(1010, "Multi-factor authentication is not enabled", 401),
+    MFA_SETUP_REQUIRED(1011, "Multi-factor authentication setup must be started first", 401),
+    EMAIL_LOGIN_CODE_INVALID(1012, "Invalid or expired sign-in code", 401),
+
+    // Registration (1100-1199) -> 400
+    REGISTRATION_FAILED(1100, "Registration failed", 400),
+    EMAIL_ALREADY_EXISTS(1101, "Email already exists", 400),
+    USERNAME_ALREADY_EXISTS(1102, "Username already exists", 400),
+    PASSWORD_TOO_WEAK(1103, "Password does not meet strength requirements", 400),
+    SIGNUP_INVITE_REQUIRED(1104, "Sign-up is by invitation only", 400),
+
+    // Password reset (1200-1299) -> 400
+    PASSWORD_RESET_FAILED(1200, "Password reset failed", 400),
+    PASSWORD_RESET_TOKEN_EXPIRED(1201, "Password reset token has expired", 400),
+    PASSWORD_RESET_TOKEN_INVALID(1202, "Invalid password reset token", 400),
+
+    // OAuth (1300-1399) -> 400
+    OAUTH_ERROR(1300, "OAuth authentication error", 400),
+    OAUTH_PROVIDER_NOT_SUPPORTED(1301, "OAuth provider not supported", 400),
+    OAUTH_EMAIL_NOT_VERIFIED(1302, "Email not verified by OAuth provider", 400),
+
+    // Email verification (1400-1499) -> 400
+    EMAIL_VERIFICATION_FAILED(1400, "Email verification failed", 400),
+    EMAIL_VERIFICATION_TOKEN_EXPIRED(1401, "Email verification token has expired", 400),
+    EMAIL_VERIFICATION_TOKEN_INVALID(1402, "Invalid email verification token", 400),
+    EMAIL_ALREADY_VERIFIED(1403, "Email is already verified", 400),
+
+    // Account unlock (1500-1599) -> 400
+    ACCOUNT_UNLOCK_FAILED(1500, "Account unlock failed", 400),
+    ACCOUNT_UNLOCK_TOKEN_EXPIRED(1501, "Account unlock token has expired", 400),
+    ACCOUNT_UNLOCK_TOKEN_INVALID(1502, "Invalid account unlock token", 400),
+    ACCOUNT_NOT_LOCKED(1503, "Account is not locked", 400),
+
+    // System (5000-5999) -> 500
+    SYSTEM_ERROR(5000, "System error", 500),
+    DATABASE_ERROR(5001, "Database error", 500),
+    SECURITY_ERROR(5002, "Security configuration error", 500),
+    JWT_CONFIGURATION_ERROR(5003, "JWT configuration error", 500),
+
+    // General (9000-9999) -> 500
+    UNKNOWN_ERROR(9999, "Unknown error", 500),
+
+    // ---- HTTP-shaped codes
+
     // 401 Unauthorized
     UNAUTHORIZED(40100, "Unauthorized", 401),
 

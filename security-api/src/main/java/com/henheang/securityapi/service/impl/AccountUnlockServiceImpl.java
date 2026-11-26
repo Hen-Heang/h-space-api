@@ -1,6 +1,6 @@
 package com.henheang.securityapi.service.impl;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AccountUnlockToken;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.User;
@@ -12,6 +12,7 @@ import com.henheang.securityapi.security.SecureTokenGenerator;
 import com.henheang.securityapi.service.AccountUnlockService;
 import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.EmailService;
+import com.henheang.securityapi.utils.LogMasking;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -64,13 +65,15 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
                 emailService.sendAccountLockedEmail(user.getEmail(), user.getName(), unlockLink);
 
         if (!emailSent) {
-            logger.error("Failed to send account unlock email to: {}", user.getEmail());
+            logger.error(
+                    "Failed to send account unlock email to: {}",
+                    LogMasking.email(user.getEmail()));
             accountUnlockTokenRepository.delete(unlockToken);
             return;
         }
 
         auditLogService.log(AuditEventType.ACCOUNT_UNLOCK_REQUESTED, user.getId(), user.getEmail());
-        logger.info("Account unlock email sent to: {}", user.getEmail());
+        logger.info("Account unlock email sent to: {}", LogMasking.email(user.getEmail()));
     }
 
     @Override
@@ -78,13 +81,16 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
     public void resendUnlockEmail(String email) {
         Optional<User> userOptional = userRepository.findByEmail(email);
         if (userOptional.isEmpty()) {
-            logger.warn("Unlock resend requested for non-existent email: {}", email);
+            logger.warn(
+                    "Unlock resend requested for non-existent email: {}", LogMasking.email(email));
             return;
         }
 
         User user = userOptional.get();
         if (user.isAccountNonLocked()) {
-            logger.info("Unlock resend requested for a non-locked account: {}", email);
+            logger.info(
+                    "Unlock resend requested for a non-locked account: {}",
+                    LogMasking.email(email));
             return;
         }
 
@@ -113,14 +119,15 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
                         .findByToken(token)
                         .orElseThrow(
                                 () -> {
-                                    logger.warn("Invalid account unlock token used: {}", token);
-                                    return new AuthException(ExitCode.ACCOUNT_UNLOCK_TOKEN_INVALID);
+                                    logger.warn("Invalid account unlock token used");
+                                    return new AuthException(
+                                            StatusCode.ACCOUNT_UNLOCK_TOKEN_INVALID);
                                 });
 
         if (unlockToken.isExpired()) {
-            logger.info("Expired account unlock token used: {}", token);
+            logger.info("Expired account unlock token used");
             accountUnlockTokenRepository.delete(unlockToken);
-            throw new AuthException(ExitCode.ACCOUNT_UNLOCK_TOKEN_EXPIRED);
+            throw new AuthException(StatusCode.ACCOUNT_UNLOCK_TOKEN_EXPIRED);
         }
 
         User user = unlockToken.getUser();
@@ -130,7 +137,9 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
         accountUnlockTokenRepository.delete(unlockToken);
 
         auditLogService.log(AuditEventType.ACCOUNT_UNLOCKED, user.getId(), user.getEmail());
-        logger.info("Account unlocked via self-service token for user: {}", user.getEmail());
+        logger.info(
+                "Account unlocked via self-service token for user: {}",
+                LogMasking.email(user.getEmail()));
     }
 
     @Override
@@ -142,7 +151,7 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
                         .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (user.isAccountNonLocked()) {
-            throw new AuthException(ExitCode.ACCOUNT_NOT_LOCKED);
+            throw new AuthException(StatusCode.ACCOUNT_NOT_LOCKED);
         }
 
         clearLock(user);
@@ -150,7 +159,7 @@ public class AccountUnlockServiceImpl implements AccountUnlockService {
 
         auditLogService.log(
                 AuditEventType.ACCOUNT_UNLOCKED, user.getId(), user.getEmail(), "by admin");
-        logger.info("Account unlocked by admin for user: {}", user.getEmail());
+        logger.info("Account unlocked by admin for user: {}", LogMasking.email(user.getEmail()));
     }
 
     private void clearLock(User user) {

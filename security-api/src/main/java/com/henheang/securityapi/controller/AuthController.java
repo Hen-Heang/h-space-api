@@ -1,6 +1,6 @@
 package com.henheang.securityapi.controller;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.Role;
 import com.henheang.securityapi.domain.User;
@@ -108,7 +108,7 @@ public class AuthController extends BaseController {
                 .orElseThrow(
                         () ->
                                 new AuthException(
-                                        ExitCode.TOKEN_EXPIRED,
+                                        StatusCode.TOKEN_EXPIRED,
                                         "Refresh token is expired. Please login again."));
     }
 
@@ -159,9 +159,19 @@ public class AuthController extends BaseController {
         return ok();
     }
 
+    // Deprecated: puts a live reset token in the URL, where access logs,
+    // proxies and the Referer header can keep it. Kept only until the web app
+    // calls POST /reset-password/validate instead; remove it then.
+    @Deprecated
     @GetMapping("/reset-password")
     public Object resetPassword(@RequestParam("token") String token) {
         boolean isValidToken = passwordResetService.validatePasswordResetToken(token);
+        return ok(new PasswordResetResponse(isValidToken));
+    }
+
+    @PostMapping("/reset-password/validate")
+    public Object validateResetToken(@Valid @RequestBody ResetTokenValidationRequest request) {
+        boolean isValidToken = passwordResetService.validatePasswordResetToken(request.getToken());
         return ok(new PasswordResetResponse(isValidToken));
     }
 

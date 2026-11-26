@@ -1,11 +1,10 @@
 # Schema Migration Prompt
 
 Use when changing a JPA entity in a way that affects the database schema.
-Flyway is the sole schema authority (`docs/database.md`). In `security-api`,
-`finance-api` and `hub-api`, `ddl-auto` is `validate` in every profile,
-`test` included — Hibernate never creates or alters the schema, and their
-tests run against the real Flyway-applied schema. (Only `open-api` and
-`api-core` tests use `create-drop`.) Every schema change is a new Flyway
+Flyway is the sole schema authority (`docs/database.md`). In `security-api`
+and `hub-api`, `ddl-auto` is `validate` in every profile, `test` included —
+Hibernate never creates or alters the schema, and their tests run against
+the real Flyway-applied schema. (Only `api-core` tests use `create-drop`.) Every schema change is a new Flyway
 migration file.
 
 Pick the right migration location — each has its own version sequence:
@@ -14,7 +13,7 @@ Pick the right migration location — each has its own version sequence:
 |---|---|---|
 | `security-api` | `security-api/src/main/resources/db/migration/` | `flyway_schema_history` |
 | `hub-api` | `hub-api/src/main/resources/db/hub-migration/` | `flyway_hub_schema_history` |
-| `finance-api` | see `docs/finance-api.md` before adding any table | — |
+| `hub-api` (finance area) | `hub-api/src/main/resources/db/finance-migration/` — read `docs/finance-api.md` first | `flyway_finance_schema_history` |
 
 ```
 Change entity {{Entity}} in {{module}}: {{add/rename/remove column,
@@ -39,9 +38,9 @@ Considerations:
   existing data (locks on big tables, NOT NULL on populated columns,
   constraint violations). Call those out explicitly for prod (Neon); prod
   migrates at startup, take a `pg_dump` first (`docs/deploy-vps.md` §8).
-- In prod `hub-api` doesn't run `security-api`'s migrations, so a `hub-api`
-  migration that references a new `security-api` column needs
-  `security-api` deployed first.
+- `hub-api` runs `security-api`'s migrations first, then hub's, then
+  finance's (`HubFlywayConfig`), so a hub or finance migration may rely on a
+  `security-api` migration in the same release.
 - Grep the field name across all modules for code assuming the old shape.
 
 Deliverables:

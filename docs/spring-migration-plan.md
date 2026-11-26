@@ -19,7 +19,7 @@ vertical slice (the Inbox).
 | # | Decision | Why |
 |---|---|---|
 | D1 | **One product module, `hub-api`** (`/api/hub/**`), one package set per area. Not one app per area, and not inside `security-api`. (This plan first named it `hspace-api`; it was folded into `hub-api`, which H-Vault had already started, on 2026-11-01.) | The design doc's modular monolith (§3.1): one port, one deploy, one migration history. Keeps auth (`security-api`) separate from product data. |
-| D2 | `hub-api` **embeds `security-api`** (component scan, like `open-api`), so it validates the same JWTs against the same database: filter chain, revoked tokens, email-verified check, `GlobalExceptionHandler`, `ApiResponse` envelope. | No second auth implementation; a revoked token is revoked everywhere. |
+| D2 | `hub-api` **embeds `security-api`** (component scan), so it validates the same JWTs against the same database: filter chain, revoked tokens, email-verified check, `GlobalExceptionHandler`, `ApiResponse` envelope. | No second auth implementation; a revoked token is revoked everywhere. |
 | D3 | Product tables live in the **same PostgreSQL database** as `security-api`, default schema, with `user_id UUID REFERENCES users(id)`. | Users already share UUIDs with Supabase (account import), so rows copy across with their ids and owners unchanged. |
 | D4 | `hub-api` migrations live in `db/hub-migration` with **their own history table** (`flyway_hub_schema_history`, `HubFlywayConfig`). Replaces the earlier "V100+ in the shared history with `out-of-order`" idea. | In production `security-api` migrates alone and without `out-of-order`: once it adds V7 below an applied V100, its validation fails and it won't start. Separate histories can't collide (`docs/database.md`). |
 | D5 | **Ownership replaces RLS in the service layer**: every repository query takes the caller's `userId` from the JWT; another user's id answers **404**; the owner never comes from the request body. | Design doc §5.1. Tested per area (other-user tests). |
@@ -231,7 +231,10 @@ Copy this into the PR for every area that moves.
   and publish it (JWKS) so routes verify locally. Decide then.
 - ~~**`finance-api`** — under D1, finance becomes a package in `hub-api`~~ —
   superseded 2026-11-03: Luyra finance moves into the separate
-  `finance-api` module. Plan of record: `docs/finance/`.
+  `finance-api` module. Plan of record: `docs/finance/`. **Reversed
+  2026-11-26:** finance moved into `hub-api` after all (package
+  `com.henheang.financeapi`, own migration history), and `hub-api` became
+  the one deployed app — `docs/architecture.md`.
 - **Local run** — `hub-api` has no committed `local` profile settings; copy
   `security-api`'s git-ignored `application-local.yml` to
   `hub-api/src/main/resources/application-local.yml` (also git-ignored) so

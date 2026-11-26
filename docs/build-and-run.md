@@ -5,10 +5,8 @@
 ./gradlew :security-api:build      # build one module
 ./gradlew build -x test            # skip tests
 
-./gradlew :security-api:bootRun    # port 8080
-./gradlew :open-api:bootRun         # port 8082, needs security-api's JWT to authenticate
-./gradlew :finance-api:bootRun      # port 8083, needs security-api's JWT to authenticate
-./gradlew :hub-api:bootRun          # port 8084, needs security-api's JWT to authenticate
+./gradlew :hub-api:bootRun          # port 8084: the H-Space app - auth, /api/hub/** and /api/finance/**
+./gradlew :security-api:bootRun    # port 8080: auth alone (handy while working on auth)
 ./gradlew :engineering-api:bootRun  # port 8085, needs SUPABASE_AUTH_ISSUER + ENGINEERING_OWNER_IDS (docs/engineering-api.md)
 
 ./gradlew test                     # all tests, JUnit 5
@@ -21,13 +19,14 @@ Run `./gradlew build` before considering any change done — don't just eyeball 
 
 ```bash
 cp .env.example .env               # then fill in JWT_SECRET, MFA_ENCRYPTION_KEY, ...
-docker compose up --build          # Postgres (127.0.0.1:5433) + security-api (127.0.0.1:8080)
+docker compose up --build          # Postgres (127.0.0.1:5433) + hub-api (127.0.0.1:8080)
 curl localhost:8080/actuator/health   # {"status":"UP"} once Flyway has migrated
 docker compose down                # keep data; add -v to drop the postgres-data volume
 ```
 
-- The image (`Dockerfile`) packages one module, `security-api` by default
-  (`--build-arg MODULE=hub-api` for hub-api), always listening on 8080;
+- The image (`Dockerfile`) packages one module, `hub-api` (the H-Space app)
+  by default (`--build-arg MODULE=engineering-api` for the Engineering Hub),
+  always listening on 8080;
   tests are not run during `docker build` — CI's `./gradlew clean build` is
   the gate.
 - Compose runs the `dev` profile (override with `COMPOSE_SPRING_PROFILE`);
@@ -46,10 +45,13 @@ after `build` passes and boots it against a throwaway Postgres, expecting
 `/actuator/health` to be `UP`:
 
 - **Pull requests** — build + smoke check only; nothing is pushed.
-- **Push to `main`** — pushed to `ghcr.io/hen-heang/h-space-api/security-api`
-  and `.../hub-api` as `latest` and `sha-<full commit>`, then each smoke
-  check runs against its pushed digest (hub-api's also checks its vault
-  migration and that `/api/hub/vault/items` refuses an anonymous call).
+- **Push to `main`** — pushed to `ghcr.io/hen-heang/h-space-api/hub-api`
+  and `.../engineering-api` as `latest` and `sha-<full commit>`, then each
+  smoke check runs against its pushed digest (hub-api's also checks that all
+  three migration sets — security, hub, finance — applied, and that
+  `/api/auth/user`, `/api/hub/vault/items` and `/api/finance/categories`
+  refuse an anonymous call). `.../security-api` images stopped at
+  2026-11-26, when hub-api became the one deployed app.
 - **Release tag `vX.Y.Z`** — also tagged `vX.Y.Z` and `vX.Y`; `latest` only
   moves on `main`.
 
@@ -57,7 +59,7 @@ Each publish run's summary prints the verified `image@sha256:...` reference.
 Deploy by that digest rather than a tag — tags can be moved, a digest can't.
 
 ```bash
-docker pull ghcr.io/hen-heang/h-space-api/security-api:latest
+docker pull ghcr.io/hen-heang/h-space-api/hub-api:latest
 ```
 
 New GHCR packages start **private**: pulling from a server needs a

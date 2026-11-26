@@ -83,6 +83,7 @@ class ScheduledTasksIntegrationTest {
     private RefreshToken refresh(Instant expiry) {
         RefreshToken t = new RefreshToken();
         t.setTokenHash(UUID.randomUUID().toString());
+        t.setFamilyId(UUID.randomUUID());
         t.setUser(user);
         t.setExpiryDate(expiry);
         return refreshTokenRepository.save(t);

@@ -1,8 +1,0 @@
-// Runnable personal-finance API, secured by security-api's JWTs.
-bootJar {
-    enabled = true
-}
-
-jar {
-    enabled = true
-}

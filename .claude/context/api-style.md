@@ -25,16 +25,17 @@ worth knowing before adding a new endpoint.
 - `EmptyJsonResponse` — a `record` used as `data` for endpoints with no real
   payload (e.g. logout).
 
-## A second, parallel status enum: `ExitCode`
+## Auth codes live in `StatusCode` too
 
-`api-core` also defines `ExitCode` (auth 1000s, registration 1100s,
+`StatusCode` is the only status enum. Besides the HTTP-shaped 5-digit codes
+(40000s, 50000s), it holds the auth codes that used to be a separate
+`ExitCode` enum (merged 2026-11-26): auth 1000s, registration 1100s,
 password reset 1200s, OAuth 1300s, email verification 1400s, account
-unlock 1500s, system 5000s, 9999 unknown), with its own `fromCode(int)`
-lookup. In practice `security-api`'s domain/auth exceptions
-(`BusinessException`, `AuthException`) carry `ExitCode`, while `StatusCode`
-is what `ApiResponse.builder()` / `BaseController` use directly. **The two
-enums coexist and are not interchangeable** — don't assume a `StatusCode`
-value has a matching `ExitCode` or vice versa.
+unlock 1500s, system 5000s, 9999 unknown. Their numeric values reach the
+web client in `status.code`, so don't renumber them. Each carries its own
+`httpCode` (1000s → 401, 1100–1599 → 400, 5000s/9999 → 500), which
+`GlobalExceptionHandler` uses for `AuthException`, the same way it does for
+`BusinessException`.
 
 ## Building a response — the actual pattern (`BaseController`)
 
@@ -59,7 +60,7 @@ flag it rather than assuming existing controllers demonstrate how to do it.
 ## Error path (`GlobalExceptionHandler`)
 
 Most `@ExceptionHandler` methods build
-`new ApiResponse<>(new ApiStatus(ExitCode.SYSTEM_ERROR.getCode(), ExitCode.SYSTEM_ERROR.getMessage()), ex.getMessage())`
+`new ApiResponse<>(new ApiStatus(StatusCode.SYSTEM_ERROR.getCode(), StatusCode.SYSTEM_ERROR.getMessage()), ex.getMessage())`
 — i.e. the envelope's status is hardcoded to the generic `SYSTEM_ERROR`
 regardless of the actual exception type; the real detail only shows up in
 `data` (exception message, or a field-error map for validation errors). The
@@ -72,9 +73,8 @@ exception types.
 Two exceptions to that pattern actually use the real code:
 - `BusinessException` → `new ApiStatus(ex.getErrorCode())` (its carried
   `StatusCode`) and HTTP status from `ex.getErrorCode().getHttpCode()`.
-- `AuthException` → still hardcodes the envelope to `SYSTEM_ERROR`, but
-  derives HTTP status from a private range-bucketing helper over its
-  `ExitCode`.
+- `AuthException` → `new ApiStatus(ex.getStatusCode().getCode(), ex.getMessage())`
+  and HTTP status from `ex.getStatusCode().getHttpCode()`.
 
 If you're adding a new failure case and want the envelope's `status` field
 to reflect it accurately (not just the HTTP status), throw a

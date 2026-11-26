@@ -8,7 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.EmailVerificationToken;
 import com.henheang.securityapi.domain.User;
@@ -88,8 +88,8 @@ class EmailVerificationServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.SYSTEM_ERROR));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.SYSTEM_ERROR));
 
         verify(emailVerificationTokenRepository).delete(any(EmailVerificationToken.class));
     }
@@ -180,8 +180,8 @@ class EmailVerificationServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.EMAIL_VERIFICATION_TOKEN_EXPIRED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.EMAIL_VERIFICATION_TOKEN_EXPIRED));
 
         verify(emailVerificationTokenRepository).delete(token);
     }
@@ -194,7 +194,7 @@ class EmailVerificationServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.EMAIL_VERIFICATION_TOKEN_INVALID));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.EMAIL_VERIFICATION_TOKEN_INVALID));
     }
 }

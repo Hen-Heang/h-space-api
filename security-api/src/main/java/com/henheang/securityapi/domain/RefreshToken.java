@@ -8,6 +8,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,7 +19,7 @@ import lombok.Setter;
 // "this token is dead" and an easy bug (filtering one but not the other). It
 // does inherit @Version from BaseEntity. Concurrent rotation (two requests
 // refreshing the same token at once) is settled by the conditional update in
-// RefreshTokenRepository.revokeIfActive, not by optimistic locking: a request
+// RefreshTokenRepository.spendForRotation, not by optimistic locking: a request
 // that checked the token before the other committed would otherwise still
 // find nothing to conflict with and issue a second token.
 @Setter
@@ -54,4 +55,14 @@ public class RefreshToken extends BaseEntity {
 
     @Column(name = "revoked", nullable = false)
     private boolean revoked;
+
+    // Shared by every token rotated from the same sign-in. Presenting a token
+    // that was already rotated revokes the whole family (reuse detection).
+    @Column(name = "family_id", nullable = false, updatable = false)
+    private UUID familyId;
+
+    // Set only when the token was spent by rotation - not by logout, the
+    // session cap or a password reset - so a replay of it can be told apart.
+    @Column(name = "rotated_at")
+    private Instant rotatedAt;
 }

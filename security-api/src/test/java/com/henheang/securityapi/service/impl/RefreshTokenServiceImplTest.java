@@ -2,15 +2,18 @@ package com.henheang.securityapi.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.RefreshToken;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.RefreshTokenRepository;
+import com.henheang.securityapi.service.AuditLogService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -22,12 +25,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 class RefreshTokenServiceImplTest {
 
     private RefreshTokenRepository refreshTokenRepository;
+    private AuditLogService auditLogService;
     private RefreshTokenServiceImpl refreshTokenService;
 
     @BeforeEach
     void setUp() {
         refreshTokenRepository = mock(RefreshTokenRepository.class);
-        refreshTokenService = new RefreshTokenServiceImpl(refreshTokenRepository);
+        auditLogService = mock(AuditLogService.class);
+        refreshTokenService = new RefreshTokenServiceImpl(refreshTokenRepository, auditLogService);
         ReflectionTestUtils.setField(refreshTokenService, "refreshTokenExpirationString", "P7D");
         when(refreshTokenRepository.save(any(RefreshToken.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -175,7 +180,7 @@ class RefreshTokenServiceImplTest {
         User user = user();
         user.setEmailVerified(true);
         RefreshToken current = activeTokenFor(user);
-        when(refreshTokenRepository.revokeIfActive(current.getId())).thenReturn(1);
+        when(refreshTokenRepository.spendForRotation(eq(current.getId()), any())).thenReturn(1);
 
         Optional<RefreshToken> rotated = refreshTokenService.rotateRefreshToken("raw-token");
 
@@ -190,7 +195,7 @@ class RefreshTokenServiceImplTest {
         user.setEmailVerified(true);
         RefreshToken current = activeTokenFor(user);
         RefreshToken otherDevice = liveSession();
-        when(refreshTokenRepository.revokeIfActive(current.getId())).thenReturn(1);
+        when(refreshTokenRepository.spendForRotation(eq(current.getId()), any())).thenReturn(1);
         when(refreshTokenRepository.findActiveByUserOldestFirst(any(), any()))
                 .thenReturn(List.of(otherDevice));
 
@@ -204,7 +209,7 @@ class RefreshTokenServiceImplTest {
         User user = user();
         user.setEmailVerified(true);
         RefreshToken current = activeTokenFor(user);
-        when(refreshTokenRepository.revokeIfActive(current.getId())).thenReturn(0);
+        when(refreshTokenRepository.spendForRotation(eq(current.getId()), any())).thenReturn(0);
 
         assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
         verify(refreshTokenRepository, never()).save(any());
@@ -217,7 +222,89 @@ class RefreshTokenServiceImplTest {
         activeTokenFor(user);
 
         assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
-        verify(refreshTokenRepository, never()).revokeIfActive(any());
+        verify(refreshTokenRepository, never()).spendForRotation(any(), any());
+    }
+
+    @Test
+    void rotateRefreshToken_keepsTheSignInsFamily() {
+        User user = user();
+        user.setEmailVerified(true);
+        RefreshToken current = activeTokenFor(user);
+        current.setFamilyId(UUID.randomUUID());
+        when(refreshTokenRepository.spendForRotation(eq(current.getId()), any())).thenReturn(1);
+
+        RefreshToken rotated = refreshTokenService.rotateRefreshToken("raw-token").orElseThrow();
+
+        assertThat(rotated.getFamilyId()).isEqualTo(current.getFamilyId());
+    }
+
+    @Test
+    void createRefreshToken_startsANewFamilyForEachSignIn() {
+        RefreshToken first = refreshTokenService.createRefreshToken(user());
+        RefreshToken second = refreshTokenService.createRefreshToken(user());
+
+        assertThat(first.getFamilyId()).isNotNull().isNotEqualTo(second.getFamilyId());
+    }
+
+    private RefreshToken spentTokenFor(User user, Instant rotatedAt) {
+        RefreshToken token = activeTokenFor(user);
+        token.setRevoked(true);
+        token.setRotatedAt(rotatedAt);
+        token.setFamilyId(UUID.randomUUID());
+        return token;
+    }
+
+    @Test
+    void rotateRefreshToken_replayOfARotatedToken_revokesTheWholeFamily() {
+        User user = user();
+        user.setEmailVerified(true);
+        RefreshToken spent = spentTokenFor(user, Instant.now().minusSeconds(60));
+        when(refreshTokenRepository.revokeFamily(spent.getFamilyId())).thenReturn(1);
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
+
+        verify(refreshTokenRepository).revokeFamily(spent.getFamilyId());
+        verify(auditLogService)
+                .log(
+                        eq(AuditEventType.REFRESH_TOKEN_REUSE_DETECTED),
+                        eq(user.getId()),
+                        eq(null),
+                        any());
+        verify(refreshTokenRepository, never()).spendForRotation(any(), any());
+    }
+
+    @Test
+    void rotateRefreshToken_replayWithinTheGraceWindow_isRefusedWithoutRevokingTheFamily() {
+        User user = user();
+        user.setEmailVerified(true);
+        spentTokenFor(user, Instant.now().minusSeconds(2));
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
+
+        verify(refreshTokenRepository, never()).revokeFamily(any());
+        verify(auditLogService, never()).log(any(), any(), any(), any());
+    }
+
+    @Test
+    void rotateRefreshToken_tokenEndedByLogout_isRefusedWithoutRevokingTheFamily() {
+        User user = user();
+        user.setEmailVerified(true);
+        spentTokenFor(user, null);
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
+
+        verify(refreshTokenRepository, never()).revokeFamily(any());
+    }
+
+    @Test
+    void rotateRefreshToken_expiredToken_spendsNothing() {
+        User user = user();
+        user.setEmailVerified(true);
+        RefreshToken current = activeTokenFor(user);
+        current.setExpiryDate(Instant.now().minusSeconds(1));
+
+        assertThat(refreshTokenService.rotateRefreshToken("raw-token")).isEmpty();
+        verify(refreshTokenRepository, never()).spendForRotation(any(), any());
     }
 
     @Test

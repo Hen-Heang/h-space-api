@@ -8,7 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.henheang.apicore.components.common.api.ExitCode;
+import com.henheang.apicore.components.common.api.StatusCode;
 import com.henheang.securityapi.domain.AccountUnlockToken;
 import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.User;
@@ -156,8 +156,8 @@ class AccountUnlockServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.ACCOUNT_UNLOCK_TOKEN_EXPIRED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.ACCOUNT_UNLOCK_TOKEN_EXPIRED));
 
         verify(accountUnlockTokenRepository).delete(token);
     }
@@ -188,8 +188,8 @@ class AccountUnlockServiceImplTest {
                 .isInstanceOf(AuthException.class)
                 .satisfies(
                         ex ->
-                                assertThat(((AuthException) ex).getExitCode())
-                                        .isEqualTo(ExitCode.ACCOUNT_NOT_LOCKED));
+                                assertThat(((AuthException) ex).getStatusCode())
+                                        .isEqualTo(StatusCode.ACCOUNT_NOT_LOCKED));
     }
 
     @Test

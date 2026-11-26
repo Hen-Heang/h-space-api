@@ -1,8 +1,10 @@
 package com.henheang.securityapi.service.impl;
 
+import com.henheang.securityapi.domain.AuditEventType;
 import com.henheang.securityapi.domain.RefreshToken;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.RefreshTokenRepository;
+import com.henheang.securityapi.service.AuditLogService;
 import com.henheang.securityapi.service.RefreshTokenService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -13,15 +15,19 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenServiceImpl implements RefreshTokenService {
     private final RefreshTokenRepository refreshTokenRepository;
+    private final AuditLogService auditLogService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${jwt.refresh-token.expiration}")
@@ -32,9 +38,20 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Value("${jwt.refresh-token.max-active-per-user:10}")
     private int maxActiveSessionsPerUser = 10;
 
+    // A spent token replayed within this window of its rotation is refused but
+    // not treated as theft: two tabs refreshing at once race exactly like this.
+    // Past it, a replay revokes the token's whole family.
+    @Value("${jwt.refresh-token.reuse-grace:PT10S}")
+    private Duration reuseGrace = Duration.ofSeconds(10);
+
+    // A sign-in starts a new family; rotation keeps the family.
     @Override
     @Transactional
     public RefreshToken createRefreshToken(User user) {
+        return createRefreshToken(user, UUID.randomUUID());
+    }
+
+    private RefreshToken createRefreshToken(User user, UUID familyId) {
         // Keep room for the new session: if the user is at the cap, drop the
         // oldest live ones. Rotation spends its own token first, so replacing
         // a session never evicts another.
@@ -56,6 +73,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
+        refreshToken.setFamilyId(familyId);
         refreshToken.setTokenHash(hash(rawToken));
         refreshToken.setRevoked(false);
         Duration duration = Duration.parse(refreshTokenExpirationString);
@@ -78,14 +96,49 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     @Transactional
     public Optional<RefreshToken> rotateRefreshToken(String token) {
-        return validateRefreshToken(token)
+        Optional<RefreshToken> found = refreshTokenRepository.findByTokenHash(hash(token));
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        RefreshToken current = found.get();
+        if (current.isRevoked()) {
+            revokeFamilyOnReuse(current);
+            return Optional.empty();
+        }
+        if (!current.getExpiryDate().isAfter(Instant.now())
                 // Same rule as JwtAuthenticationFilter: no session for an
                 // unverified email.
-                .filter(current -> Boolean.TRUE.equals(current.getUser().getEmailVerified()))
-                // Of two requests racing with the same token, only one revokes
+                || !Boolean.TRUE.equals(current.getUser().getEmailVerified())
+                // Of two requests racing with the same token, only one spends
                 // it here; the other gets 0 and is refused.
-                .filter(current -> refreshTokenRepository.revokeIfActive(current.getId()) == 1)
-                .map(current -> createRefreshToken(current.getUser()));
+                || refreshTokenRepository.spendForRotation(current.getId(), Instant.now()) != 1) {
+            return Optional.empty();
+        }
+        return Optional.of(createRefreshToken(current.getUser(), current.getFamilyId()));
+    }
+
+    // A token spent by rotation came back: either the client replayed an old
+    // one, or someone copied it. The server can't tell which holder is the
+    // attacker, so it ends the whole chain and the user signs in again. Runs in
+    // the caller's transaction, which commits: the controller throws only
+    // after rotateRefreshToken has returned.
+    private void revokeFamilyOnReuse(RefreshToken spent) {
+        Instant rotatedAt = spent.getRotatedAt();
+        if (rotatedAt == null || rotatedAt.plus(reuseGrace).isAfter(Instant.now())) {
+            return;
+        }
+        int revoked = refreshTokenRepository.revokeFamily(spent.getFamilyId());
+        UUID userId = spent.getUser().getId();
+        log.warn(
+                "Refresh token reuse for user {}: revoked {} live token(s) of family {}",
+                userId,
+                revoked,
+                spent.getFamilyId());
+        auditLogService.log(
+                AuditEventType.REFRESH_TOKEN_REUSE_DETECTED,
+                userId,
+                null,
+                "familyId=" + spent.getFamilyId() + ", revoked=" + revoked);
     }
 
     private String hash(String rawToken) {

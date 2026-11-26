@@ -35,8 +35,7 @@ feature-count-driven demos. Cross-repo context:
 ## Data ownership and the Supabase migration
 
 - Existing H-Space web feature records still live in Supabase under RLS and
-  are not owned by this API. `open-api` todo endpoints are a **sample**, not a
-  verified frontend integration.
+  are not owned by this API.
 - Before moving goals, tasks, reminders, finances or vault records to Spring,
   document who owns the data, the API contract, UUID/user mapping, the
   RLS/authorization replacement, and the reconciliation and rollback plan —
@@ -45,10 +44,17 @@ feature-count-driven demos. Cross-repo context:
 
 ## Architecture
 
-- One-way module dependency: `api-core` → `security-api` → `open-api` /
-  `finance-api` / `hub-api`. The three downstream modules are siblings. Never
+- One-way module dependency: `api-core` → `security-api` → `hub-api`. Never
   make `api-core` or `security-api` depend on something downstream — stop and
   flag it instead.
+- `hub-api` is the **one deployed H-Space app** (since 2026-11-26): it embeds
+  `security-api` (auth) and holds the product areas — inbox and H-Vault
+  (`com.henheang.hubapi`) and finance (`com.henheang.financeapi`). Add a new
+  area as its own package set there, not as a new runnable module.
+  `security-api` still runs on its own for its tests and `bootRun`, but isn't
+  deployed. The former `open-api` (sample) and `finance-api` modules are gone.
+- Auth settings live once, in `security-api.yml` / `security-api-{profile}.yml`,
+  imported by both apps' `application.yml`. Don't copy them into `hub-api`.
 - `engineering-api` (the owner-only Engineering Hub, `docs/engineering-api.md`)
   depends on `api-core` **only**: it verifies Supabase access tokens itself
   (JWKS, ES256/RS256), so it must never depend on or scan `security-api`.
@@ -70,13 +76,16 @@ feature-count-driven demos. Cross-repo context:
 
 ## Database
 
-- Flyway is the schema authority; `ddl-auto=validate` (only `open-api` and
-  `api-core` tests use `create-drop`). Never use schema auto-update or ad-hoc
+- Flyway is the schema authority; `ddl-auto=validate` (only `api-core` tests
+  use `create-drop`). Never use schema auto-update or ad-hoc
   production SQL.
 - A schema change is a new `V{n}__description.sql`; never edit an applied
   migration. `security-api` → `security-api/src/main/resources/db/migration/`;
   `hub-api` → `hub-api/src/main/resources/db/hub-migration/` (own version
-  sequence, history table `flyway_hub_schema_history`); `engineering-api` →
+  sequence, history table `flyway_hub_schema_history`); finance →
+  `hub-api/src/main/resources/db/finance-migration/` (history table
+  `flyway_finance_schema_history`). `HubFlywayConfig` runs security, then
+  hub, then finance at start-up. `engineering-api` →
   `engineering-api/src/main/resources/db/engineering-migration/` (own schema
   `engineering`, history table `flyway_engineering_schema_history`).
 

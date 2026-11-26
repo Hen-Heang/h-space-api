@@ -44,10 +44,10 @@ is exactly the kind of file that goes stale silently.
   (`CacheConfig`/`PermissionQueryService`).
 - `commons-lang3` `3.12.0`, `commons-beanutils` `1.9.4`.
 
-## `open-api`-specific dependencies
+## `hub-api`-specific dependencies
 
-- Spring Security + jjwt (validates tokens issued by `security-api`, doesn't
-  issue its own).
+- Spring Security + jjwt (validates tokens issued by the embedded
+  `security-api`), Flyway (hub and finance migration sets).
 - springdoc-openapi (Swagger UI).
 
 ## CI

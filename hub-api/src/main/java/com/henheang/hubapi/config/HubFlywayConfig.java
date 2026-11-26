@@ -1,43 +1,48 @@
 package com.henheang.hubapi.config;
 
 import org.flywaydb.core.Flyway;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * hub-api's tables live in the same database as security-api's but have their own migrations
- * ({@code db/hub-migration}) and history table, so neither app's Flyway ever sees the other's
- * versions as unknown or out of order.
+ * Migrates the whole database at start-up, in a fixed order: security-api's schema first (the
+ * auto-configured Flyway, {@code db/migration}, history {@code flyway_schema_history}), then hub's
+ * ({@code db/hub-migration}), then finance's ({@code db/finance-migration}). Hub and finance tables
+ * reference {@code users}, so auth must migrate first.
  *
- * <p>The auto-configured Flyway (security-api's {@code db/migration}) runs first only when {@code
- * hub.flyway.run-security-migrations} is true - locally and in tests, where hub-api is alone on the
- * database. In prod security-api migrates its own schema and must be up first.
+ * <p>Each set keeps its own history table, so their version numbers never collide or look out of
+ * order to one another. Before 2026-11-26 security-api, hub-api and finance-api were separate apps
+ * and the product apps skipped security's migrations in prod; this app is now the only one that
+ * deploys, so it always runs all three.
  */
 @Configuration
 public class HubFlywayConfig {
 
     static final String HUB_LOCATION = "classpath:db/hub-migration";
     static final String HUB_HISTORY_TABLE = "flyway_hub_schema_history";
+    static final String FINANCE_LOCATION = "classpath:db/finance-migration";
+    static final String FINANCE_HISTORY_TABLE = "flyway_finance_schema_history";
 
     @Bean
-    public FlywayMigrationStrategy hubFlywayMigrationStrategy(
-            @Value("${hub.flyway.run-security-migrations:true}") boolean runSecurityMigrations) {
+    public FlywayMigrationStrategy hubFlywayMigrationStrategy() {
         return flyway -> {
-            if (runSecurityMigrations) {
-                flyway.migrate();
-            }
-            Flyway.configure()
-                    .configuration(flyway.getConfiguration())
-                    .locations(HUB_LOCATION)
-                    .table(HUB_HISTORY_TABLE)
-                    // The schema already holds security-api's tables; start
-                    // hub's history at 0 so V1 onwards still apply.
-                    .baselineOnMigrate(true)
-                    .baselineVersion("0")
-                    .load()
-                    .migrate();
+            flyway.migrate();
+            migrate(flyway, HUB_LOCATION, HUB_HISTORY_TABLE);
+            migrate(flyway, FINANCE_LOCATION, FINANCE_HISTORY_TABLE);
         };
+    }
+
+    private static void migrate(Flyway base, String location, String historyTable) {
+        Flyway.configure()
+                .configuration(base.getConfiguration())
+                .locations(location)
+                .table(historyTable)
+                // The schema already holds security-api's tables; start this
+                // set's history at 0 so its V1 onwards still apply.
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
+                .load()
+                .migrate();
     }
 }

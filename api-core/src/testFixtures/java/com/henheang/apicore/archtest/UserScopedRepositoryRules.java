@@ -23,8 +23,8 @@ import org.springframework.data.repository.query.Param;
 
 /**
  * Enforces "every repository method is scoped by userId" for modules whose rows each belong to one
- * user (hub-api, finance-api). It used to be a written rule only; one unscoped finder would let one
- * user read or delete another user's rows - for H-Vault, real credentials.
+ * user (hub-api: hub and finance areas). It used to be a written rule only; one unscoped finder
+ * would let one user read or delete another user's rows - for H-Vault, real credentials.
  *
  * <p>Two rules, both checked against compiled classes:
  *

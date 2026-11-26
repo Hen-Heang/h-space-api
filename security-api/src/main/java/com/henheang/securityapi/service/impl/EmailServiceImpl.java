@@ -1,6 +1,7 @@
 package com.henheang.securityapi.service.impl;
 
 import com.henheang.securityapi.service.EmailService;
+import com.henheang.securityapi.utils.LogMasking;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -78,7 +79,7 @@ public class EmailServiceImpl implements EmailService {
 
     private boolean sendHtmlEmail(String email, String subject, String template, Context context) {
         try {
-            log.info("Preparing to send '{}' email to: {}", template, email);
+            log.info("Preparing to send '{}' email to: {}", template, LogMasking.email(email));
 
             if (email == null || email.trim().isEmpty()) {
                 log.error("Email address is null or empty");
@@ -110,14 +111,14 @@ public class EmailServiceImpl implements EmailService {
 
             mailSender.send(message);
 
-            log.info("Email '{}' sent successfully to: {}", template, email);
+            log.info("Email '{}' sent successfully to: {}", template, LogMasking.email(email));
             return true;
 
         } catch (MessagingException e) {
             log.error(
                     "Failed to send '{}' email to {} - MessagingException: {}",
                     template,
-                    email,
+                    LogMasking.email(email),
                     e.getMessage(),
                     e);
             if (e.getCause() != null) {
@@ -128,7 +129,7 @@ public class EmailServiceImpl implements EmailService {
             log.error(
                     "Unexpected error while sending '{}' email to {}: {}",
                     template,
-                    email,
+                    LogMasking.email(email),
                     e.getMessage(),
                     e);
             return false;

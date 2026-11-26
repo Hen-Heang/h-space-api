@@ -1,0 +1,27 @@
+package com.henheang.financeapi;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.henheang.hubapi.HubApiApplication;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+
+@SpringBootTest(classes = HubApiApplication.class)
+@AutoConfigureMockMvc
+class FinanceApiApplicationTests {
+
+    @Autowired private MockMvc mockMvc;
+
+    @Test
+    void contextLoads() {}
+
+    @Test
+    void financeEndpointsRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/finance/categories")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/finance/payment-methods")).andExpect(status().isUnauthorized());
+    }
+}

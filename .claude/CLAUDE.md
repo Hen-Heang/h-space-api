@@ -38,8 +38,8 @@ contributor/agent).
     `docs/architecture.md`'s summary.
   - `database.md` — Flyway as schema authority (security-api and hub-api
     migration sets), `ddl-auto` per profile (`validate` everywhere except
-    `open-api`/`api-core` tests).
-  - `api-style.md` — how the `ApiResponse`/`StatusCode`/`ExitCode` envelope
+    `api-core` tests).
+  - `api-style.md` — how the `ApiResponse`/`StatusCode` envelope
     actually behaves in code, including known quirks (hardcoded status
     codes in `BaseController`/`GlobalExceptionHandler`).
   - `roadmap.md` — condensed `ROADMAP.md`: done vs. deliberately deferred

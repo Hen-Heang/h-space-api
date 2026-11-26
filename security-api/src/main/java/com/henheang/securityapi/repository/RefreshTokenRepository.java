@@ -29,13 +29,21 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     List<RefreshToken> findActiveByUserOldestFirst(
             @Param("user") User user, @Param("now") Instant now);
 
-    // Revokes the token only if it's still active, in one statement: of two
-    // concurrent refreshes with the same token, exactly one gets 1 back.
+    // Spends the token only if it's still active, in one statement: of two
+    // concurrent refreshes with the same token, exactly one gets 1 back. Also
+    // records when it was spent, so a later replay is recognised as reuse.
+    @Modifying
+    @Query(
+            "UPDATE RefreshToken r SET r.revoked = true, r.rotatedAt = :now,"
+                    + " r.version = r.version + 1 WHERE r.id = :id AND r.revoked = false")
+    int spendForRotation(@Param("id") UUID id, @Param("now") Instant now);
+
+    // Ends every live token of one sign-in chain (reuse detected).
     @Modifying
     @Query(
             "UPDATE RefreshToken r SET r.revoked = true, r.version = r.version + 1"
-                    + " WHERE r.id = :id AND r.revoked = false")
-    int revokeIfActive(@Param("id") UUID id);
+                    + " WHERE r.familyId = :familyId AND r.revoked = false")
+    int revokeFamily(@Param("familyId") UUID familyId);
 
     // One bulk DELETE for the cleanup job - it used to load every refresh token
     // into memory and delete them one by one.
