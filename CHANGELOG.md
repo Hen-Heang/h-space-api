@@ -8,6 +8,36 @@ project has no released versions yet, so everything lives under
 ## [Unreleased]
 
 ### Added
+- Auth V2 pilot in hub-api (`docs/auth-v2.md`), **off by default**
+  (`HUB_SUPABASE_AUTH_ENABLED`): a separate, precedence-first security chain
+  for `GET /api/hub/session` (new probe) and `/api/hub/inbox-items/**` that
+  accepts Supabase access tokens only; per-request H-Space admission read
+  from Supabase's Data API with the caller's own token (403 / 503 fail
+  closed); `aal2` required for the Inbox; no legacy-JWT fallback. With it on,
+  security-api's JWT filter is no longer also registered in the servlet
+  container. Inbox owner now resolved by `HubCaller` (one token kind per
+  configuration). 18 integration tests against a loopback JWKS/Data API stub
+  and real Postgres, plus config tests.
+- hub migration `V3__app_users.sql` (decision H4, proposed): `app_users`
+  anchor; `inbox_items.user_id` references it instead of `users`, so a
+  Supabase-only user can own items without a password row. Deleting a legacy
+  `users` row no longer cascades to inbox items.
+- `scripts/auth-v2-local/fake-supabase.mjs`: dev-only loopback stub (JWKS,
+  admission read, synthetic tokens) for running the pilot locally.
+- `supabase-auth` library module (`docs/supabase-auth.md`): engineering-api's
+  Supabase access-token verification, extracted so other modules can reuse
+  it. `SupabaseJwtDecoders`, `SupabaseAuthenticationConverter`
+  (`SUPABASE_USER`, plus `SUPABASE_MFA` for `aal2`) and `SupabaseSession`.
+  No project dependencies and no secrets. engineering-api uses it; its 32
+  tests passed unchanged after the extraction.
+
+### Changed
+- Token-verification hardening (A1-H, behaviour change, applies to
+  engineering-api too): `exp` is now required, and the issuer must be
+  `https` (plain `http` only on loopback), without query/fragment/user
+  info. Tests added for nbf skew, audience arrays, malformed timestamps,
+  header `jku`/`x5u`/`jwk` never being followed, and key rotation /
+  unknown `kid` / JWKS outage against a loopback key server.
 - `engineering-api` project registry (S2 of `docs/engineering-api.md`):
   `/api/engineering/projects` CRUD over a new `projects` table (Flyway V2),
   scoped by the owner's Supabase user id and guarded at build time by

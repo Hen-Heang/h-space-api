@@ -15,6 +15,17 @@ spring:
     import: classpath:security-api.yml
 
 hub:
+  # Auth V2 pilot (docs/auth-v2.md). OFF unless HUB_SUPABASE_AUTH_ENABLED=true.
+  # On: /api/hub/session and /api/hub/inbox-items accept ONLY Supabase access
+  # tokens (verified against <url>/auth/v1/.well-known/jwks.json), check the
+  # caller's H-Space admission on every request and require aal2 for the Inbox.
+  # Public values only - never the service-role key or the legacy JWT secret.
+  supabase-auth:
+    enabled: ${HUB_SUPABASE_AUTH_ENABLED:false}
+    url: ${HUB_SUPABASE_URL:}
+    publishable-key: ${HUB_SUPABASE_PUBLISHABLE_KEY:}
+    audience: ${HUB_SUPABASE_AUDIENCE:authenticated}
+    admission-timeout: ${HUB_SUPABASE_ADMISSION_TIMEOUT:3s}
   vault:
     # Step-up (a fresh authenticator or backup code) for vault reset and
     # keyset replacement. A code that is sent is always verified; this makes

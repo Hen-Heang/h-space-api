@@ -186,6 +186,9 @@ project(':hub-api') {
     dependencies {
         implementation project(':api-core')
         implementation project(':security-api')
+        // Auth V2 pilot (off by default): Supabase tokens on the session probe and
+        // the Inbox only - see docs/auth-v2.md. No security-api dependency.
+        implementation project(':supabase-auth')
 
         // Validates security-api's JWTs
         implementation 'org.springframework.boot:spring-boot-starter-security'

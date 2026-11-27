@@ -56,8 +56,18 @@ feature-count-driven demos. Cross-repo context:
 - Auth settings live once, in `security-api.yml` / `security-api-{profile}.yml`,
   imported by both apps' `application.yml`. Don't copy them into `hub-api`.
 - `engineering-api` (the owner-only Engineering Hub, `docs/engineering-api.md`)
-  depends on `api-core` **only**: it verifies Supabase access tokens itself
-  (JWKS, ES256/RS256), so it must never depend on or scan `security-api`.
+  depends on `api-core` and `supabase-auth` **only**: it verifies Supabase
+  access tokens (JWKS, ES256/RS256), so it must never depend on or scan
+  `security-api`.
+- `supabase-auth` (`docs/supabase-auth.md`) is a library with **no project
+  dependencies**: Supabase access-token verification for any module that
+  trusts the web app's session. Keep it that way: no `api-core`, no
+  `security-api`, no secrets (only the issuer's published keys).
+- Auth V2 pilot (`docs/auth-v2.md`, off by default): with
+  `HUB_SUPABASE_AUTH_ENABLED=true` hub-api's `/api/hub/session` and
+  `/api/hub/inbox-items/**` take Supabase tokens only, with per-request
+  admission and aal2 for the Inbox. Never add a Supabase-then-legacy fallback
+  on one route, and don't widen it to Finance/Vault/auth without a decision.
 - Do not reintroduce the deleted `legacy/spring-jwt-auth` project.
 - Shared dependency versions live once in the root `build.gradle`
   `subprojects {}`, not per module.

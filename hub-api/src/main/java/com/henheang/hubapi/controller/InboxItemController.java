@@ -2,15 +2,15 @@ package com.henheang.hubapi.controller;
 
 import com.henheang.hubapi.payload.inbox.InboxItemPatchRequest;
 import com.henheang.hubapi.payload.inbox.InboxItemRequest;
+import com.henheang.hubapi.security.HubCaller;
 import com.henheang.hubapi.service.InboxItemService;
 import com.henheang.securityapi.controller.BaseController;
-import com.henheang.securityapi.security.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -21,8 +21,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// Quick Capture Inbox. The owner always comes from the JWT, never the body;
-// another user's item answers 404.
+// Quick Capture Inbox. The owner always comes from the verified token, never the
+// body; another user's item answers 404. Which token - security-api's or, with
+// the Auth V2 pilot on, Supabase's - is decided by configuration (HubCaller).
 @RestController
 @RequestMapping("/api/hub/inbox-items")
 @RequiredArgsConstructor
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class InboxItemController extends BaseController {
 
     private final InboxItemService inboxItemService;
+    private final HubCaller hubCaller;
 
     @Operation(
             summary = "List inbox items",
@@ -38,24 +40,22 @@ public class InboxItemController extends BaseController {
                             + " an English full-text search over title and content; limit 1-500.")
     @GetMapping
     public Object list(
-            @AuthenticationPrincipal UserPrincipal principal,
+            Authentication caller,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String itemType,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer limit) {
-        return ok(inboxItemService.list(principal.getId(), status, itemType, q, limit));
+        return ok(inboxItemService.list(hubCaller.inboxUserId(caller), status, itemType, q, limit));
     }
 
     @GetMapping("/{id}")
-    public Object get(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
-        return ok(inboxItemService.get(principal.getId(), id));
+    public Object get(Authentication caller, @PathVariable UUID id) {
+        return ok(inboxItemService.get(hubCaller.inboxUserId(caller), id));
     }
 
     @PostMapping
-    public Object create(
-            @AuthenticationPrincipal UserPrincipal principal,
-            @Valid @RequestBody InboxItemRequest request) {
-        return ok(inboxItemService.create(principal.getId(), request));
+    public Object create(Authentication caller, @Valid @RequestBody InboxItemRequest request) {
+        return ok(inboxItemService.create(hubCaller.inboxUserId(caller), request));
     }
 
     @Operation(
@@ -66,15 +66,15 @@ public class InboxItemController extends BaseController {
                             + " convertedToId).")
     @PatchMapping("/{id}")
     public Object update(
-            @AuthenticationPrincipal UserPrincipal principal,
+            Authentication caller,
             @PathVariable UUID id,
             @Valid @RequestBody InboxItemPatchRequest request) {
-        return ok(inboxItemService.update(principal.getId(), id, request));
+        return ok(inboxItemService.update(hubCaller.inboxUserId(caller), id, request));
     }
 
     @DeleteMapping("/{id}")
-    public Object delete(@AuthenticationPrincipal UserPrincipal principal, @PathVariable UUID id) {
-        inboxItemService.delete(principal.getId(), id);
+    public Object delete(Authentication caller, @PathVariable UUID id) {
+        inboxItemService.delete(hubCaller.inboxUserId(caller), id);
         return ok();
     }
 }
