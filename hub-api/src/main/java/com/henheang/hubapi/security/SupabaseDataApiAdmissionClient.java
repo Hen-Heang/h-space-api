@@ -11,6 +11,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +38,16 @@ public class SupabaseDataApiAdmissionClient implements AdmissionClient {
 
     static final String TABLE = "kori_app_access";
     static final int MAX_BODY_BYTES = 4 * 1024;
+
+    // Runs each lookup (headers + body) so the request thread can give up on time.
+    // Daemon threads; a lookup abandoned at the deadline has its stream closed.
+    private static final ExecutorService READERS =
+            Executors.newCachedThreadPool(
+                    task -> {
+                        Thread thread = new Thread(task, "hub-admission-lookup");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
 
     private final HttpClient http;
     private final String baseUrl;
@@ -68,10 +85,39 @@ public class SupabaseDataApiAdmissionClient implements AdmissionClient {
                         .header("Accept", "application/json")
                         .GET()
                         .build();
+        // The request timeout only bounds the wait for response headers; a server that
+        // then stalls the body would block a plain read forever. So the whole exchange -
+        // headers and body - runs off the request thread, and the caller waits for at
+        // most `timeout` in total. On expiry the stream is closed (ending the read) and
+        // the answer is UNAVAILABLE.
+        AtomicReference<InputStream> openBody = new AtomicReference<>();
+        CompletableFuture<Admission> exchange =
+                CompletableFuture.supplyAsync(() -> fetch(request, openBody), READERS);
+        try {
+            return exchange.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException tooSlow) {
+            log.warn("Admission lookup failed: no complete reply within {} ms", timeout.toMillis());
+            closeQuietly(openBody.get());
+            exchange.cancel(true);
+            return Admission.UNAVAILABLE;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            log.warn("Admission lookup interrupted");
+            closeQuietly(openBody.get());
+            exchange.cancel(true);
+            return Admission.UNAVAILABLE;
+        } catch (ExecutionException | RuntimeException failure) {
+            log.warn("Admission lookup failed: {}", failure.getClass().getSimpleName());
+            return Admission.UNAVAILABLE;
+        }
+    }
+
+    private Admission fetch(HttpRequest request, AtomicReference<InputStream> openBody) {
         try {
             HttpResponse<InputStream> response =
                     http.send(request, HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream body = response.body()) {
+                openBody.set(body);
                 if (response.statusCode() != 200) {
                     log.warn("Admission lookup failed: HTTP {}", response.statusCode());
                     return Admission.UNAVAILABLE;
@@ -85,12 +131,23 @@ public class SupabaseDataApiAdmissionClient implements AdmissionClient {
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            log.warn("Admission lookup interrupted");
             return Admission.UNAVAILABLE;
         } catch (IOException | RuntimeException failure) {
             // Class name only: an exception message can carry a URL or a reply fragment.
-            log.warn("Admission lookup failed: {}", failure.getClass().getSimpleName());
+            // (A stream closed by the timeout above also lands here; that's expected.)
+            log.debug("Admission lookup ended: {}", failure.getClass().getSimpleName());
             return Admission.UNAVAILABLE;
+        }
+    }
+
+    private static void closeQuietly(InputStream stream) {
+        if (stream == null) {
+            return;
+        }
+        try {
+            stream.close();
+        } catch (IOException ignored) {
+            // Already failing closed; nothing else to do.
         }
     }
 

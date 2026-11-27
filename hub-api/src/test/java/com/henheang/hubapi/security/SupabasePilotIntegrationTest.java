@@ -185,6 +185,20 @@ class SupabasePilotIntegrationTest {
         expectForbidden(send(get(SESSION), token(alice, "aal2")));
     }
 
+    // ACC-06: headers arrive but the body stalls - the deadline still covers the whole reply
+    // (500 ms here), so the request gets 503 promptly instead of holding a thread.
+    @Test
+    void admissionBodyStall_is503_withinTheDeadline() throws Exception {
+        ADMISSION.put(alice.toString(), "STALL_BODY");
+        long started = System.nanoTime();
+        send(get(SESSION), token(alice, "aal2"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status.code").value(50301));
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+        assertThat(elapsedMs).isLessThan(2_500);
+        assertThat(appUserRows(alice)).isZero();
+    }
+
     // ACC-06: the authority failing, timing out or answering nonsense is 503 - never admitted.
     @Test
     void admissionUnavailable_is503_neverAdmitted() throws Exception {
@@ -585,6 +599,22 @@ class SupabasePilotIntegrationTest {
                                     Thread.currentThread().interrupt();
                                 }
                                 reply(exchange, 200, "[{\"status\":\"approved\"}]");
+                            }
+                            case "STALL_BODY" -> {
+                                // Headers promptly, then a body that never finishes.
+                                exchange.getResponseHeaders()
+                                        .add("Content-Type", "application/json");
+                                try {
+                                    exchange.sendResponseHeaders(200, 64);
+                                    exchange.getResponseBody()
+                                            .write("[{\"sta".getBytes(StandardCharsets.UTF_8));
+                                    exchange.getResponseBody().flush();
+                                    Thread.sleep(5_000);
+                                } catch (IOException | InterruptedException ignored) {
+                                    // the client gave up
+                                } finally {
+                                    exchange.close();
+                                }
                             }
                             default -> reply(exchange, 200, "[{\"status\":\"" + mode + "\"}]");
                         }
