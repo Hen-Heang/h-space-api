@@ -1,10 +1,25 @@
 # Auth V2 pilot — Supabase sessions on hub-api's session probe and Inbox
 
-Status (2026-11-27): **implemented and tested locally only, OFF by default.**
-Not merged, not deployed, no live Supabase/Neon/Railway change. Design source:
-the owner's vault notes "API Migration" 10 (spec), 11 (test plan), 05
-(contracts), 08 (decisions). "Auth V2" is a design revision, not a package
-upgrade.
+Status (2026-11-27): **merged (#58, `7c3adf0`) and deployed to the Railway
+sandbox with the pilot OFF.** Railway deployment `eb51177a` succeeded: hub-api
+started on `prod` with no errors, the pilot and the old Supabase bridge both
+off. `V3__app_users.sql` is applied **by inference only** - `prod` logs at
+WARN so Flyway's lines don't show, but startup passed `ddl-auto: validate`
+with the new `AppUser` entity; whether the foreign key was re-pointed is not
+proven. To confirm (read-only, Railway database console):
+
+```sql
+select version, description, success from flyway_hub_schema_history order by installed_rank;
+select confrelid::regclass from pg_constraint where conname = 'inbox_items_user_id_fkey';
+```
+
+Expect `3 | app users | t` and `app_users`. The service has no public domain,
+and no live Supabase change was made (`kori_app_access` is not applied).
+Codex review findings fixed before merge: the admission reply is bounded
+including its body (`e7639e4`), and the Inbox import runbook anchors owners
+in `app_users` (`572e20d`). Design source: the owner's vault notes "API
+Migration" 10 (spec), 11 (test plan), 05 (contracts), 08 (decisions).
+"Auth V2" is a design revision, not a package upgrade.
 
 ## What it is
 
@@ -162,7 +177,7 @@ https, so no legitimate caller is expected to change.
 |---|---|---|
 | H1 Supabase is the product IdP | yes | proposed, owner approval pending |
 | H3 library placement | separate `supabase-auth` module, no project deps | proposed |
-| H4 Inbox FK | `app_users` anchor (V3) | **proposed — needs approval before merge** |
+| H4 Inbox FK | `app_users` anchor (V3) | **merged by the owner 2026-11-27**; live in the Railway sandbox (FK re-point to confirm, see Status) |
 | H5 signing keys / legacy secret | not touched; pilot refuses HS256 | live check pending |
 | H6 MFA RLS migration | not applied; ordering hazard documented + tested | pending |
 | H9 login methods | Google/password/email code unchanged; GitHub flag-off | proposed |
