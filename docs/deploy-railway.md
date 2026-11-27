@@ -65,7 +65,7 @@ chat. Names match `deploy/prod.env.example`, minus the VPS-only ones
 | Variable | Needed | Notes |
 |---|---|---|
 | `SPRING_PROFILES_ACTIVE` | yes | `prod` — no fallback secrets; startup fails if one is missing |
-| `DB_URL` | yes | `jdbc:postgresql://HOST:5432/DB`; TLS is enforced (`sslmode=require` unless stricter) |
+| `DB_URL` | yes | `jdbc:postgresql://HOST:5432/DB?sslmode=require`; TLS is enforced (`sslmode=require` unless stricter). See the note below the table |
 | `DB_USERNAME`, `DB_PASSWORD` | yes | The sandbox database's role |
 | `JWT_SECRET` | yes | New, ≥ 64 bytes Base64 (`openssl rand -base64 64 \| tr -d '\n'`). Never the VPS-era value |
 | `MFA_ENCRYPTION_KEY` | yes | New, 32 bytes Base64. Don't change it once anyone enables MFA |
@@ -76,6 +76,26 @@ chat. Names match `deploy/prod.env.example`, minus the VPS-only ones
 | `DB_POOL_MIN_IDLE` | no | Leave unset (0). Never 1 on Neon |
 | `API_DOCS_ENABLED` | no | `true` turns on Swagger UI; turn it off again after use |
 | `VAULT_STEP_UP_REQUIRED` | no | `true` makes vault reset / keyset replacement require an MFA code (default `false`) |
+
+**`DB_URL` must be a JDBC URL, not the connection string Neon shows first.**
+Neon's default string starts with `postgresql://`, embeds the role and
+password before the host, and ends with `channel_binding=require`. A Railway
+reference such as `${{Postgres.DATABASE_URL}}` has the same shape. Either one
+fails at startup with
+`Driver org.postgresql.Driver claims to not accept jdbcUrl` (2026-11-27).
+Make sure that:
+
+- it starts with `jdbc:postgresql://`;
+- it has no role or password in it (nothing before an `@`): the driver reads
+  the text after the first `:` as the port and rejects the URL, even with the
+  `jdbc:` prefix. The role goes in `DB_USERNAME` / `DB_PASSWORD`;
+- the host is Neon's **direct** endpoint, without `-pooler` (section 2);
+- it has no `channel_binding=…`, which the JDBC driver doesn't use under that
+  name; `sslmode` already enforces TLS;
+- it has no surrounding quotes and no leading or trailing whitespace.
+
+A quick check that doesn't reveal the value: it starts with
+`jdbc:postgresql://ep-` and contains no `@`.
 
 ## 4. Never
 
@@ -93,8 +113,8 @@ chat. Names match `deploy/prod.env.example`, minus the VPS-only ones
 
 1. Create the database and set the variables above.
 2. Deploy (push to `main`, or **Redeploy** in the dashboard). Expect
-   Flyway's migrations, then `Started SecurityApiApplication` in the
-   deploy logs.
+   Flyway's migrations (security, then hub, then finance), then
+   `Started HubApiApplication` in the deploy logs.
 3. **Health check:** under Settings → Deploy, set the healthcheck path to
    `/actuator/health/liveness` — it answers without touching the database,
    so a database blip doesn't fail a deploy. (Railway uses its own check,
