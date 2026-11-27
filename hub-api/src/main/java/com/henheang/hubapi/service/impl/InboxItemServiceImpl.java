@@ -7,6 +7,7 @@ import com.henheang.hubapi.payload.inbox.InboxItemResponse;
 import com.henheang.hubapi.payload.inbox.InboxItemValues;
 import com.henheang.hubapi.repository.AppUserRepository;
 import com.henheang.hubapi.repository.InboxItemRepository;
+import com.henheang.hubapi.repository.InboxItemTombstoneRepository;
 import com.henheang.hubapi.service.InboxItemService;
 import com.henheang.securityapi.exception.BadRequestException;
 import com.henheang.securityapi.exception.ResourceNotFoundException;
@@ -29,6 +30,7 @@ public class InboxItemServiceImpl implements InboxItemService {
 
     private final InboxItemRepository inboxItemRepository;
     private final AppUserRepository appUserRepository;
+    private final InboxItemTombstoneRepository inboxItemTombstoneRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -113,10 +115,29 @@ public class InboxItemServiceImpl implements InboxItemService {
         return InboxItemResponse.from(inboxItemRepository.saveAndFlush(item));
     }
 
+    /**
+     * Deletes the caller's item and leaves a tombstone (id, owner, time; no content) so a rollback
+     * of the Inbox cutover can replay the delete. Order, all in this one transaction:
+     *
+     * <ol>
+     *   <li>ownership: another user's or an unknown id is 404 and writes nothing;
+     *   <li>the DELETE, flushed now rather than at commit. It is version-checked ({@code ... WHERE
+     *       id = ? AND version = ?}, BaseEntity's {@code @Version}), so if the item changed since
+     *       we read it, it fails here with the same 409 it always gave, before any tombstone
+     *       exists;
+     *   <li>the tombstone INSERT.
+     * </ol>
+     *
+     * If anything fails, the transaction rolls back both statements: the item is never gone without
+     * its tombstone, and a tombstone never exists for an item that is still there.
+     */
     @Override
     @Transactional
     public void delete(UUID userId, UUID id) {
-        inboxItemRepository.delete(findOwned(userId, id));
+        InboxItem item = findOwned(userId, id);
+        inboxItemRepository.delete(item);
+        inboxItemRepository.flush();
+        inboxItemTombstoneRepository.record(id, userId);
     }
 
     private InboxItem findOwned(UUID userId, UUID id) {
