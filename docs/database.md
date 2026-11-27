@@ -17,7 +17,9 @@
 - `hub-api` (the deployed app) holds two more migration sets besides
   `security-api`'s, each with its **own** history table so their version
   numbers never collide: hub's (`hub-api/src/main/resources/db/hub-migration/`,
-  currently `V1__vault.sql`, `V2__inbox_items.sql`; `flyway_hub_schema_history`)
+  currently `V1__vault.sql`, `V2__inbox_items.sql`, `V3__app_users.sql` (Auth V2
+  H4, proposed: `inbox_items.user_id` now references `app_users`, see
+  `docs/auth-v2.md`); `flyway_hub_schema_history`)
   and finance's (`hub-api/src/main/resources/db/finance-migration/`, currently
   `V1__finance_lookups.sql`, `V2__finance_transactions.sql` — V2 needs
   PostgreSQL 15+ for a column-list `ON DELETE SET NULL`;

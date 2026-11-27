@@ -1,0 +1,13 @@
+// Library module (docs/supabase-auth.md): shared Supabase access-token
+// verification, never run standalone. Its dependencies are configured in the
+// root build.gradle.
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+    // Spring Boot's plugin tags the plain jar "-plain"; consumers depend on
+    // the project, so drop the classifier like api-core does.
+    archiveClassifier = ''
+}

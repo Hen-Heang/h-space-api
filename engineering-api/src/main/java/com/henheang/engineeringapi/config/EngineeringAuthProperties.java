@@ -1,5 +1,6 @@
 package com.henheang.engineeringapi.config;
 
+import com.henheang.supabaseauth.SupabaseJwtDecoders;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import java.util.Set;
@@ -30,11 +31,11 @@ public record EngineeringAuthProperties(
 
     /** The issuer without a trailing slash, as Supabase writes it in {@code iss}. */
     public String normalizedIssuer() {
-        return issuer.endsWith("/") ? issuer.substring(0, issuer.length() - 1) : issuer;
+        return SupabaseJwtDecoders.normalizeIssuer(issuer);
     }
 
     /** Where the issuer publishes its signing keys. */
     public String jwksUri() {
-        return normalizedIssuer() + "/.well-known/jwks.json";
+        return SupabaseJwtDecoders.jwksUri(issuer);
     }
 }

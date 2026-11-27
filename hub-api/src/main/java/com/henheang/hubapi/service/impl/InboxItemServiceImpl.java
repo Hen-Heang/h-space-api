@@ -5,6 +5,7 @@ import com.henheang.hubapi.payload.inbox.InboxItemPatchRequest;
 import com.henheang.hubapi.payload.inbox.InboxItemRequest;
 import com.henheang.hubapi.payload.inbox.InboxItemResponse;
 import com.henheang.hubapi.payload.inbox.InboxItemValues;
+import com.henheang.hubapi.repository.AppUserRepository;
 import com.henheang.hubapi.repository.InboxItemRepository;
 import com.henheang.hubapi.service.InboxItemService;
 import com.henheang.securityapi.exception.BadRequestException;
@@ -27,6 +28,7 @@ public class InboxItemServiceImpl implements InboxItemService {
     private static final String ALL = "all";
 
     private final InboxItemRepository inboxItemRepository;
+    private final AppUserRepository appUserRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,6 +56,9 @@ public class InboxItemServiceImpl implements InboxItemService {
     @Override
     @Transactional
     public InboxItemResponse create(UUID userId, InboxItemRequest request) {
+        // The owner's anchor row (V3__app_users.sql). A Supabase-only user has no
+        // legacy users row; this records only their id, never credentials.
+        appUserRepository.ensure(userId);
         InboxItem item = new InboxItem();
         item.setUserId(userId);
         item.setTitle(blankToNull(request.getTitle()));

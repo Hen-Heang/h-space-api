@@ -1,5 +1,6 @@
 package com.henheang.engineeringapi.security;
 
+import com.henheang.supabaseauth.SupabaseSession;
 import java.util.UUID;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -13,6 +14,6 @@ public final class CurrentOwner {
     private CurrentOwner() {}
 
     public static UUID id(Jwt jwt) {
-        return UUID.fromString(jwt.getSubject());
+        return SupabaseSession.userId(jwt);
     }
 }

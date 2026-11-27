@@ -10,9 +10,13 @@ security-api  (auth; runs alone only for its tests and bootRun, port 8080)
 hub-api       (THE deployed H-Space app: embeds security-api; hub + finance areas;
                port 8084 with bootRun, 8080 in its image)
 
-api-core
+supabase-auth (shared library, no bootJar, not runnable, NO project dependencies)
+
+api-core + supabase-auth
     ^
-engineering-api (owner-only Engineering Hub, port 8085, runnable, depends on api-core ONLY)
+engineering-api (owner-only Engineering Hub, port 8085, runnable, depends on api-core + supabase-auth)
+
+hub-api also depends on supabase-auth, for the Auth V2 pilot (off by default).
 ```
 
 Two apps deploy: `hub-api` and `engineering-api`. Until 2026-11-26 there were
@@ -22,7 +26,14 @@ five runnable modules — `security-api`, `hub-api`, `finance-api` and a sample
 `hub-api` (package `com.henheang.financeapi` unchanged) and `open-api` was
 removed (it's in git history).
 
-`engineering-api` stands apart: it verifies Supabase access tokens itself
+- `supabase-auth` — verifies Supabase Auth access tokens (`SupabaseJwtDecoders`:
+  ES256/RS256 from the issuer's JWKS, issuer, audience, required `exp`, https
+  issuer), turns them into an authentication (`SupabaseAuthenticationConverter`:
+  `SUPABASE_USER`, plus `SUPABASE_MFA` for `aal2`) and reads the caller's id
+  (`SupabaseSession`). No secret, no module dependency. See
+  `docs/supabase-auth.md`; hub-api's pilot use is `docs/auth-v2.md`.
+
+`engineering-api` stands apart: it verifies Supabase access tokens (through `supabase-auth`)
 (against the project's published keys, ES256/RS256 only), so it has no
 `security-api` code, tables or scheduled jobs. See `docs/engineering-api.md`.
 

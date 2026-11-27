@@ -3,4 +3,6 @@ include 'api-core'
 include 'security-api'
 include 'hub-api'
 
+include 'supabase-auth'
+
 include 'engineering-api'

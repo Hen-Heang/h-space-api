@@ -168,6 +168,10 @@ paste it into tools or chats, and delete it after the import.
      converted_to_id uuid, created_at timestamptz, updated_at timestamptz);
    \copy inbox_stage from 'inbox_items.csv' with (format csv, header)
    select distinct user_id from inbox_stage where user_id not in (select id from users); -- must be empty
+   -- Since hub V3 (docs/auth-v2.md) inbox_items.user_id references app_users,
+   -- and the service's per-user ensure() doesn't run for a SQL import: anchor
+   -- every staged owner first (ids only; idempotent).
+   insert into app_users (id) select distinct user_id from inbox_stage on conflict (id) do nothing;
    insert into inbox_items (id, user_id, title, content, item_type, tags, captured_at, event_at,
      goal_id, status, source, pinned, converted_to_type, converted_to_id, created_at, updated_at)
    select id, user_id, title, content, item_type, tags, captured_at, event_at,

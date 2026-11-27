@@ -1,5 +1,6 @@
 package com.henheang.engineeringapi.security;
 
+import com.henheang.supabaseauth.SupabaseSession;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -20,15 +21,14 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
  *       session, even the owner's, gets nothing.
  * </ul>
  *
- * Any other valid token authenticates (so the caller sees 403, not 401) but holds no authority.
+ * Any other valid token authenticates (so the caller sees 403, not 401) but holds no authority. The
+ * claim reading is {@code supabase-auth}'s {@link SupabaseSession}; only the owner allowlist is
+ * engineering-api's own rule.
  */
 public final class OwnerAuthenticationConverter
         implements Converter<Jwt, AbstractAuthenticationToken> {
 
     public static final String OWNER = "ENGINEERING_OWNER";
-
-    private static final String AAL_CLAIM = "aal";
-    private static final String MFA_LEVEL = "aal2";
 
     private final Set<UUID> ownerIds;
 
@@ -39,20 +39,10 @@ public final class OwnerAuthenticationConverter
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         boolean owner =
-                isOwner(jwt.getSubject()) && MFA_LEVEL.equals(jwt.getClaimAsString(AAL_CLAIM));
+                SupabaseSession.tryUserId(jwt).filter(ownerIds::contains).isPresent()
+                        && SupabaseSession.hasMfa(jwt);
         List<GrantedAuthority> authorities =
                 owner ? List.of(new SimpleGrantedAuthority(OWNER)) : List.of();
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
-    }
-
-    private boolean isOwner(String subject) {
-        if (subject == null) {
-            return false;
-        }
-        try {
-            return ownerIds.contains(UUID.fromString(subject));
-        } catch (IllegalArgumentException notAUuid) {
-            return false;
-        }
     }
 }

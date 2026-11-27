@@ -186,6 +186,9 @@ project(':hub-api') {
     dependencies {
         implementation project(':api-core')
         implementation project(':security-api')
+        // Auth V2 pilot (off by default): Supabase tokens on the session probe and
+        // the Inbox only - see docs/auth-v2.md. No security-api dependency.
+        implementation project(':supabase-auth')
 
         // Validates security-api's JWTs
         implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -208,16 +211,30 @@ project(':hub-api') {
     }
 }
 
+// Configure supabase-auth (library, never run standalone; see
+// docs/supabase-auth.md): verifies Supabase Auth access tokens against the
+// project's published keys (JWKS) and turns them into an authentication.
+// No project dependencies and no secrets, so any module can use it without
+// pulling in security-api's own login system.
+project(':supabase-auth') {
+    apply plugin: 'java-library'
+
+    dependencies {
+        // Jwt, JwtDecoder and the Nimbus types appear in this module's API.
+        api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    }
+}
+
 // Configure engineering-api module (owner-only Engineering Hub; see
-// docs/engineering-api.md). Depends on api-core ONLY: it verifies Supabase
-// access tokens itself, so it never pulls in security-api's login system,
-// users tables or scheduled jobs.
+// docs/engineering-api.md). Depends on api-core and supabase-auth only: it
+// never pulls in security-api's login system, users tables or scheduled jobs.
 project(':engineering-api') {
     dependencies {
         implementation project(':api-core')
 
         // Resource server: verifies Supabase-issued JWTs against the
         // project's published keys (JWKS). No shared secret, no token minting.
+        implementation project(':supabase-auth')
         implementation 'org.springframework.boot:spring-boot-starter-security'
         implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
