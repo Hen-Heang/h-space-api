@@ -1,5 +1,6 @@
 package com.henheang.hubapi.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -11,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.henheang.hubapi.domain.InboxItemTombstone;
+import com.henheang.hubapi.repository.InboxItemTombstoneRepository;
 import com.henheang.securityapi.domain.AuthProvider;
 import com.henheang.securityapi.domain.User;
 import com.henheang.securityapi.repository.UserRepository;
@@ -25,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,13 +49,18 @@ class InboxItemControllerIntegrationTest {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private UserRepository userRepository;
     @Autowired private JwtTokenProvider jwtTokenProvider;
+    @Autowired private InboxItemTombstoneRepository tombstoneRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private String aliceToken;
     private String bobToken;
+    private UUID aliceId;
 
     @BeforeEach
     void createUsers() {
-        aliceToken = jwtTokenProvider.generateToken(saveUser());
+        User alice = saveUser();
+        aliceId = alice.getId();
+        aliceToken = jwtTokenProvider.generateToken(alice);
         bobToken = jwtTokenProvider.generateToken(saveUser());
     }
 
@@ -261,6 +270,74 @@ class InboxItemControllerIntegrationTest {
 
         send(delete(BASE + "/" + id), aliceToken, null).andExpect(status().isOk());
         send(get(BASE + "/" + id), aliceToken, null).andExpect(status().isNotFound());
+    }
+
+    // --- P1-R1 change ledger (vault test plan LED-01..04) ---------------------
+
+    // LED-01: a delete leaves exactly one tombstone - the id, the owner and a
+    // time - and the response is still the plain 200 envelope.
+    @Test
+    void deleteLeavesATombstoneForTheOwner() throws Exception {
+        String id = createItem(aliceToken, item("to be deleted", "note"));
+
+        String json =
+                send(delete(BASE + "/" + id), aliceToken, null)
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        // Unchanged contract (BaseController.ok()): status block and an empty
+        // data object - nothing about the deleted item or its tombstone echoed.
+        JsonNode body = objectMapper.readTree(json);
+        assertThat(body.has("status")).isTrue();
+        assertThat(body.path("data").isObject()).isTrue();
+        assertThat(body.path("data").isEmpty()).isTrue();
+
+        List<InboxItemTombstone> tombstones = tombstoneRepository.findByUserId(aliceId);
+        assertThat(tombstones).hasSize(1);
+        assertThat(tombstones.get(0).getId()).isEqualTo(UUID.fromString(id));
+        assertThat(tombstones.get(0).getDeletedAt()).isNotNull();
+    }
+
+    // LED-02: another user's delete is the same 404 as before and writes no
+    // tombstone; the owner's item is untouched. An unknown id is 404 too.
+    @Test
+    void anotherUsersDeleteWritesNoTombstone() throws Exception {
+        String id = createItem(aliceToken, item("alice's", "note"));
+
+        send(delete(BASE + "/" + id), bobToken, null).andExpect(status().isNotFound());
+        send(delete(BASE + "/" + UUID.randomUUID()), aliceToken, null)
+                .andExpect(status().isNotFound());
+
+        send(get(BASE + "/" + id), aliceToken, null).andExpect(status().isOk());
+        assertThat(tombstoneRepository.findById(UUID.fromString(id))).isEmpty();
+        assertThat(tombstoneRepository.findByUserId(aliceId)).isEmpty();
+    }
+
+    // LED-03: deleting again is 404 (unchanged contract) and doesn't add a
+    // second tombstone.
+    @Test
+    void deletingTwiceIsNotFoundAndKeepsOneTombstone() throws Exception {
+        String id = createItem(aliceToken, item("once", "note"));
+
+        send(delete(BASE + "/" + id), aliceToken, null).andExpect(status().isOk());
+        send(delete(BASE + "/" + id), aliceToken, null).andExpect(status().isNotFound());
+
+        assertThat(tombstoneRepository.findByUserId(aliceId)).hasSize(1);
+    }
+
+    // LED-04: the tombstone table can't hold content - only these columns
+    // exist, so a deleted item's text is really gone.
+    @Test
+    void tombstonesHoldNoContentColumns() {
+        List<String> columns =
+                jdbcTemplate.queryForList(
+                        "SELECT column_name FROM information_schema.columns"
+                                + " WHERE table_schema = current_schema()"
+                                + " AND table_name = 'inbox_item_tombstones'"
+                                + " ORDER BY ordinal_position",
+                        String.class);
+        assertThat(columns).containsExactly("id", "user_id", "deleted_at");
     }
 
     // Was a 500 (migration-plan audit finding 1.6): GlobalExceptionHandler

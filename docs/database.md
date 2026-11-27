@@ -19,7 +19,10 @@
   numbers never collide: hub's (`hub-api/src/main/resources/db/hub-migration/`,
   currently `V1__vault.sql`, `V2__inbox_items.sql`, `V3__app_users.sql` (Auth V2
   H4, proposed: `inbox_items.user_id` now references `app_users`, see
-  `docs/auth-v2.md`); `flyway_hub_schema_history`)
+  `docs/auth-v2.md`), `V4__inbox_item_tombstones.sql` (P1-R1: id, owner and
+  time of every Inbox delete, no content, written in the delete's own
+  transaction so a cutover rollback can replay deletes; see
+  `docs/spring-migration-plan.md`); `flyway_hub_schema_history`)
   and finance's (`hub-api/src/main/resources/db/finance-migration/`, currently
   `V1__finance_lookups.sql`, `V2__finance_transactions.sql` — V2 needs
   PostgreSQL 15+ for a column-list `ON DELETE SET NULL`;

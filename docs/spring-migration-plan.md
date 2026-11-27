@@ -3,7 +3,17 @@
 Status: **Phase 0 done, Phase 1 (Inbox) built and `hub-api` deployed to
 production (2026-11-01) — Inbox data not cut over yet.** Started 2026-10-30.
 
-Sign-in is already Spring-only (`security-api`). What still runs on Supabase is
+> **Update 2026-11-27.** Parts of this plan are history. Since 2026-11-21 the
+> web app signs in with **Supabase Auth** again, the bridge is off, and hub-api
+> runs on Railway as a sandbox that H-Space doesn't call (`docs/auth-v2.md`,
+> h-space `docs/SPRING_EXIT_PLAN.md`). An Inbox move to Spring now goes through
+> the Auth V2 pilot (Supabase tokens, admission, aal2), not the legacy JWT. The
+> web switch is `NEXT_PUBLIC_AUTHV2_INBOX_BACKEND=spring` +
+> `NEXT_PUBLIC_AUTHV2_API_URL`; `NEXT_PUBLIC_DATA_SOURCE_INBOX` and
+> `x-hspace-token` are gone. The cutover runbook below is current (P1-R1). The
+> decisions and phase table are kept as the original design record.
+
+Sign-in was Spring-only (`security-api`) when this plan was written. What still runs on Supabase is
 the H-Space web app's **data**: every feature reads and writes Supabase tables
 under row-level security (RLS), reached with a short-lived token from the
 temporary bridge (`/api/auth/supabase-token`). This plan moves that data into
@@ -140,37 +150,48 @@ type and request, not the message.
 
 ### Inbox cutover runbook
 
-The export file holds personal data: keep it outside any repository, never
-paste it into tools or chats, and delete it after the import.
+Rewritten 2026-11-27 (P1-R1) for Railway, `app_users` (hub V3), tombstones
+(hub V4) and the Auth V2 switch. Every step that writes is an explicit,
+separately approved operator action; nothing here runs automatically. The
+read-only SQL lives in [`scripts/inbox-cutover/`](../scripts/inbox-cutover/README.md)
+and is tested by `InboxCutoverSqlIntegrationTest`.
 
-1. **Run `hub-api`** against the Spring database (it applies its V2,
-   `inbox_items`) — on the VPS that's the `hub` compose profile
-   (`docs/deploy-vps.md` §15), which already shares `security-api`'s
-   `JWT_SECRET` and the rest of its secrets.
-2. **Check owners exist** — every Supabase inbox owner must be a Spring user
-   with the same id (account import, `docs/supabase-user-import.md`). On
-   Supabase:
-   ```sql
-   select user_id, count(*) from public.kori_inbox_items group by user_id;
-   ```
-   and on Spring, for those ids: `select id from users where id in (...);`
-3. **Export** from Supabase (read-only):
+Exported files hold personal data: keep them outside any repository, never
+paste them into tools or chats, and delete them afterwards.
+
+**Preconditions** (each a release gate, owner-approved; see the vault's Auth V2
+test plan):
+
+- The Auth V2 pilot passes on staging with real Supabase sessions, and the
+  pilot users have `kori_app_access` = approved and two authenticators.
+- Owner decision on which store is authoritative for the Inbox today. h-space
+  `docs/SPRING_EXIT_PLAN.md` step 2 (copy old Spring rows back to Supabase)
+  must be completed or explicitly superseded first.
+- Backup of both stores taken and a restore rehearsed on an isolated target.
+- Read-only check of Supabase's triggers on `kori_inbox_items`. The checksum
+  excludes `updated_at` because a trigger may rewrite it on replay. If another
+  trigger rewrites a copied column, stop and adapt.
+
+**Cutover (Supabase → Spring):**
+
+1. **Freeze the Supabase writer**, server-side rather than only hidden in the
+   UI (for example, a temporary RLS policy that denies insert, update and
+   delete on `kori_inbox_items`, applied with approval).
+2. **Export** from Supabase (read-only), keeping the file out of every
+   repository:
    ```bash
-   psql "$SUPABASE_DB_URL" -c "\copy (select id, user_id, title, content, item_type, tags, captured_at, event_at, goal_id, status, source, pinned, converted_to_type, converted_to_id, created_at, updated_at from public.kori_inbox_items order by created_at) to 'inbox_items.csv' with (format csv, header)"
+   psql "$SUPABASE_DB_URL" -c "\copy (select id, user_id, title, content, item_type, tags, captured_at, event_at, goal_id, status, source, pinned, converted_to_type, converted_to_id, created_at, updated_at from public.kori_inbox_items order by id) to 'inbox_items.csv' with (format csv, header)"
    ```
-4. **Import** into Spring in one transaction, through a staging table so a
-   missing owner is reported instead of aborting halfway:
+3. **Import** into Spring in one transaction, through a staging table:
    ```sql
    begin;
    create temp table inbox_stage (id uuid, user_id uuid, title text, content text,
      item_type text, tags text[], captured_at timestamptz, event_at timestamptz,
      goal_id uuid, status text, source text, pinned boolean, converted_to_type text,
-     converted_to_id uuid, created_at timestamptz, updated_at timestamptz);
+     converted_to_id uuid, created_at timestamptz, updated_at timestamptz) on commit drop;
    \copy inbox_stage from 'inbox_items.csv' with (format csv, header)
-   select distinct user_id from inbox_stage where user_id not in (select id from users); -- must be empty
-   -- Since hub V3 (docs/auth-v2.md) inbox_items.user_id references app_users,
-   -- and the service's per-user ensure() doesn't run for a SQL import: anchor
-   -- every staged owner first (ids only; idempotent).
+   \i scripts/inbox-cutover/import-guard.sql   -- must return no rows; else rollback
+   -- Anchor every owner (ids only, idempotent). No legacy users row is needed (V3).
    insert into app_users (id) select distinct user_id from inbox_stage on conflict (id) do nothing;
    insert into inbox_items (id, user_id, title, content, item_type, tags, captured_at, event_at,
      goal_id, status, source, pinned, converted_to_type, converted_to_id, created_at, updated_at)
@@ -179,23 +200,48 @@ paste it into tools or chats, and delete it after the import.
    from inbox_stage on conflict (id) do nothing;
    commit;
    ```
-5. **Reconcile** — run on both databases (`kori_inbox_items` / `inbox_items`)
-   and compare; counts and hashes must match per user:
-   ```sql
-   select user_id, count(*), md5(string_agg(id::text || content || status, '|' order by id))
-   from <table> group by user_id order by user_id;
+4. **Reconcile.** Run the same file on both sides and compare the output line by line:
+   ```bash
+   psql "$SUPABASE_DB_URL" -v inbox_table=kori_inbox_items -f scripts/inbox-cutover/canonical-checksum.sql > supabase.txt
+   psql "$SPRING_DB_URL"   -v inbox_table=inbox_items      -f scripts/inbox-cutover/canonical-checksum.sql > spring.txt
+   diff supabase.txt spring.txt   # must be empty
    ```
-6. **Switch** the web app: `NEXT_PUBLIC_DATA_SOURCE_INBOX=spring`; redeploy.
-   (`NEXT_PUBLIC_HSPACE_API_URL` can stay unset: it defaults to the auth API's
-   URL, where Caddy routes `/api/hub/*` to `hub-api`.)
-7. **Verify** in the app: list, capture, pin, archive, convert to note/task/journal, Ask Hengo
-   cites an inbox item.
+   Any difference: stop, unfreeze Supabase, and empty the imported rows. Nobody
+   has written to Spring yet.
+5. **Record T**, the cutover time, from the Spring database clock:
+   `select now();`. Write it into the release log.
+6. **Switch** the web app to Spring for the pilot users only:
+   `NEXT_PUBLIC_AUTHV2_INBOX_BACKEND=spring` and
+   `NEXT_PUBLIC_AUTHV2_API_URL=<hub-api https origin>`, then redeploy. Spring is
+   now the single writer, and every delete leaves a tombstone.
+7. **Verify** in the app: list, capture, pin, archive, convert to
+   note/task/journal. Ask Hengo still searches Supabase's Inbox only (h-space
+   `lib/server/memory-retrieval.ts`, unused `searchInbox` hook). Wire it to
+   Spring before calling the cutover complete.
 8. **Delete** `inbox_items.csv`.
 
-**Rollback:** unset `NEXT_PUBLIC_DATA_SOURCE_INBOX` and redeploy; the app reads
-Supabase again. Items created or changed in Spring after step 6 must be copied
-back first (the same export/import in the other direction, `on conflict (id) do
-update`). Leave `kori_inbox_items` in Supabase, unused, until Phase 6.
+**Rollback (Spring → Supabase), after any writes in Spring.** A flag flip alone
+loses Spring's creates, edits and deletes. Do it in this order:
+
+1. Freeze the Spring writer (unset the web switch and redeploy, or stop
+   routing `/api/hub/inbox-items`). Keep Supabase frozen.
+2. Export the delta (read-only). `margin` covers the skew between the
+   application clock, which stamps `created_at`/`updated_at`, and T. Taking
+   too much is harmless; taking too little is not.
+   ```bash
+   psql "$SPRING_DB_URL" --csv -v since="$T" -v margin='10 minutes' -f scripts/inbox-cutover/delta-upserts.sql -o inbox_upserts.csv
+   psql "$SPRING_DB_URL" --csv -v since="$T" -v margin='10 minutes' -f scripts/inbox-cutover/delta-deletes.sql -o inbox_deletes.csv
+   ```
+3. Replay into Supabase in one transaction: upsert every delta row
+   (`insert … on conflict (id) do update set` every copied column), then
+   `delete from public.kori_inbox_items where id = any(<tombstoned ids>)`.
+4. Reconcile with `canonical-checksum.sql` on both sides. The output must be
+   identical.
+5. Unfreeze Supabase as the single writer. Leave Spring's rows and tombstones
+   in place, read-only, until the owner decides otherwise.
+
+Leave `kori_inbox_items` in Supabase, unused, until Phase 6. Tombstones are
+kept until then (decision SF-3, proposed).
 
 ## Per-area checklist
 
