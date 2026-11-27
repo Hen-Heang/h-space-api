@@ -64,8 +64,8 @@ the owner's H-Space session.
 
 | Check | Where | Failure |
 |---|---|---|
-| Signature with a key from `<issuer>/.well-known/jwks.json`, **ES256 or RS256 only** | `SupabaseJwtDecoderConfig` | 401 |
-| `iss` equals `SUPABASE_AUTH_ISSUER`; `aud` contains `authenticated`; not expired | `SupabaseJwtDecoderConfig` | 401 |
+| Signature with a key from `<issuer>/.well-known/jwks.json`, **ES256 or RS256 only** | `SupabaseJwtDecoderConfig` → `supabase-auth` `SupabaseJwtDecoders` | 401 |
+| `iss` equals `SUPABASE_AUTH_ISSUER` (which must be https); `aud` contains `authenticated`; `exp` present and not expired | `SupabaseJwtDecoderConfig` → `supabase-auth` `SupabaseJwtDecoders` | 401 |
 | `sub` in `ENGINEERING_OWNER_IDS` **and** `aal` = `aal2` | `OwnerAuthenticationConverter` | 403 |
 
 - **No secret that can mint tokens.** Only public keys are read, so the

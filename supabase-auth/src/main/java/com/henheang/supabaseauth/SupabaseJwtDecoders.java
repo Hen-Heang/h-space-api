@@ -9,7 +9,9 @@ import com.nimbusds.jose.util.DefaultResourceRetriever;
 import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -30,7 +32,11 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
  *       with HS256 - e.g. with Supabase's legacy shared secret, which still exists until it's
  *       rotated - or an unsigned ({@code alg: none}) token is rejected before any key is tried.
  *   <li><b>Claims:</b> {@code iss} must equal the issuer, {@code aud} must contain the audience,
- *       and {@code exp}/{@code nbf} must be valid (Spring's default 60 s clock skew).
+ *       {@code exp} must be present and {@code exp}/{@code nbf} valid (Spring's default 60 s clock
+ *       skew).
+ *   <li><b>Key location:</b> only the configured issuer's JWKS. Header-supplied {@code jku}/{@code
+ *       x5u}/{@code jwk} are never followed. The issuer must be {@code https} (plain {@code http}
+ *       only for a loopback host).
  * </ul>
  *
  * <p>Keys are fetched lazily on the first request and cached by Nimbus, so startup needs no
@@ -66,7 +72,45 @@ public final class SupabaseJwtDecoders {
             throw new IllegalArgumentException("A Supabase Auth issuer is required");
         }
         String trimmed = issuer.trim();
-        return trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+        String normalized =
+                trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+        requireSecureIssuer(normalized);
+        return normalized;
+    }
+
+    /**
+     * Hardening (A1-H): the issuer - and so the JWKS URL derived from it - must be an absolute
+     * {@code https} URL with a host and no query or fragment. Plain {@code http} is accepted only
+     * for a loopback host ({@code localhost}, {@code 127.0.0.1}, {@code [::1]}), i.e. a local
+     * Supabase stack or a test, never a remote key server an attacker on the path could answer.
+     */
+    static void requireSecureIssuer(String issuer) {
+        URI uri;
+        try {
+            uri = new URI(issuer);
+        } catch (java.net.URISyntaxException notAUri) {
+            throw new IllegalArgumentException("The Supabase Auth issuer is not a valid URL");
+        }
+        String host = uri.getHost();
+        if (!uri.isAbsolute() || host == null || host.isBlank()) {
+            throw new IllegalArgumentException("The Supabase Auth issuer must be an absolute URL");
+        }
+        if (uri.getRawQuery() != null
+                || uri.getRawFragment() != null
+                || uri.getUserInfo() != null) {
+            throw new IllegalArgumentException(
+                    "The Supabase Auth issuer must not have a query, fragment or user info");
+        }
+        String scheme = uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        boolean loopback =
+                host.equalsIgnoreCase("localhost")
+                        || host.equals("127.0.0.1")
+                        || host.equals("[::1]")
+                        || host.equals("::1");
+        if (!scheme.equals("https") && !(scheme.equals("http") && loopback)) {
+            throw new IllegalArgumentException(
+                    "The Supabase Auth issuer must use https (http only for a loopback host)");
+        }
     }
 
     /** Where the issuer publishes its signing keys: {@code <issuer>/.well-known/jwks.json}. */
@@ -107,7 +151,13 @@ public final class SupabaseJwtDecoders {
         OAuth2TokenValidator<Jwt> audienceCheck =
                 new JwtClaimValidator<List<String>>(
                         JwtClaimNames.AUD, aud -> aud != null && aud.contains(audience));
+        // Hardening (A1-H): Spring's timestamp validator only checks exp when it is present, so a
+        // token without one would never expire. Supabase always sets it; require it.
+        OAuth2TokenValidator<Jwt> expiryRequired =
+                new JwtClaimValidator<Instant>(JwtClaimNames.EXP, Objects::nonNull);
         return new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(normalizeIssuer(issuer)), audienceCheck);
+                JwtValidators.createDefaultWithIssuer(normalizeIssuer(issuer)),
+                audienceCheck,
+                expiryRequired);
     }
 }

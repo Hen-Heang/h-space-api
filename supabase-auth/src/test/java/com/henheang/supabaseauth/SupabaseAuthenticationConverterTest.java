@@ -65,6 +65,29 @@ class SupabaseAuthenticationConverterTest {
         assertThat(SupabaseSession.tryUserId(jwt)).isEmpty();
     }
 
+    // JWT-09: only the exact string aal2 is MFA; anything else is a plain user.
+    @Test
+    void unknownOrMalformedAal_isNeverMfa() {
+        for (Object aal : java.util.List.<Object>of("AAL2", "aal3", "aal2 ", 2, true)) {
+            Jwt jwt = jwt(b -> b.claim("aal", aal));
+            assertThat(authorities(jwt))
+                    .as(String.valueOf(aal))
+                    .containsExactly(SupabaseAuthenticationConverter.USER);
+        }
+    }
+
+    // JWT-10: neither role nor scope claims grant anything beyond SUPABASE_USER.
+    @Test
+    void scopeAndAdminClaims_grantNothingExtra() {
+        Jwt jwt =
+                jwt(
+                        b ->
+                                b.claim("role", "admin")
+                                        .claim("scope", "admin openid")
+                                        .claim("app_metadata", java.util.Map.of("role", "owner")));
+        assertThat(authorities(jwt)).containsExactly(SupabaseAuthenticationConverter.USER);
+    }
+
     @Test
     void roleClaim_isIgnored() {
         Jwt jwt = jwt(b -> b.claim("role", "service_role"));

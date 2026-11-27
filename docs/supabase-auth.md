@@ -2,8 +2,8 @@
 
 Shared library (no bootJar, never run on its own). It lets a Spring module
 accept the **Supabase Auth access token the H-Space web app already has**,
-instead of issuing its own tokens. engineering-api uses it today; it is the
-intended base for any future module the web app calls.
+instead of issuing its own tokens. engineering-api uses it, and hub-api's
+Auth V2 pilot (`docs/auth-v2.md`, off by default).
 
 ## Why
 
@@ -18,7 +18,7 @@ all and keeps one sign-in system.
 
 | Class | Job |
 |---|---|
-| `SupabaseJwtDecoders` | `jwkSource(issuer)` (lazy, cached, 3 s timeouts) and `decoder(keys, issuer, audience)`: **ES256/RS256 only** (HS256 and `alg: none` are refused before any key is tried), `iss` must equal the issuer (trailing slash ignored), `aud` must contain the audience (`authenticated`), `exp`/`nbf` with Spring's 60 s skew. Blank issuer or audience fails fast. |
+| `SupabaseJwtDecoders` | `jwkSource(issuer)` (lazy, cached, 3 s timeouts) and `decoder(keys, issuer, audience)`: **ES256/RS256 only** (HS256 and `alg: none` are refused before any key is tried), `iss` must equal the issuer (trailing slash ignored), `aud` must contain the audience (`authenticated`), `exp` **required** (A1-H) and `exp`/`nbf` with Spring's 60 s skew. Blank issuer or audience fails fast; the issuer must be `https` (plain `http` only on loopback), never with query/fragment/user info (A1-H). Header `jku`/`x5u`/`jwk` are never followed. |
 | `SupabaseAuthenticationConverter` | Every valid token authenticates (so a caller without rights gets 403, not 401). Authorities: `SUPABASE_USER` when `sub` is a UUID; also `SUPABASE_MFA` when `aal` = `aal2`. The token's `role` claim is ignored. |
 | `SupabaseSession` | `userId(jwt)` (the only source of a user id), `tryUserId`, `assuranceLevel`, `hasMfa`. |
 
@@ -62,3 +62,10 @@ an in-memory JWKS: no network, no database. They cover ES256 and RS256
 acceptance, wrong issuer/audience, missing audience, expiry and the skew
 boundary, HS256, `alg: none`, an unpublished key reusing a published `kid`,
 garbage input, non-UUID or missing `sub`, and `aal1`/`aal2`/no `aal`.
+
+`SupabaseJwtDecodersHardeningTest` covers the A1-H behaviour changes
+separately: required `exp`, missing `iss`, audience arrays, `nbf` skew,
+malformed `exp`, insecure issuers, header-supplied key locations (a loopback
+"attacker" server must get zero requests) and key rotation, unknown `kid`
+and a JWKS outage against a loopback key server (fail closed). The converter
+test also covers unknown `aal` values and role/scope claims.
