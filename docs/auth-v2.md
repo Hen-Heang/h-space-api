@@ -91,6 +91,12 @@ gate passed.
 deleting a legacy `users` row no longer cascades to that user's inbox items.
 Applied so far only to local test schemas (`hub_api_test`, `auth_v2_local`).
 
+`V4__inbox_item_tombstones.sql` (P1-R1, proposed, 2026-11-27) adds
+`inbox_item_tombstones (id, user_id → app_users, deleted_at)`. In both modes, a
+delete that passed every gate and the ownership check writes one tombstone in
+the same transaction. The Inbox contract and every gate are unchanged. Purpose
+and runbook: `docs/spring-migration-plan.md` (Inbox cutover runbook).
+
 ## Admission table (web repo)
 
 `h-space` `apps/web/supabase/migrations/20261127120000_kori_app_access.sql`
